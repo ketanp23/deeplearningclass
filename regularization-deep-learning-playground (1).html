@@ -1,0 +1,1429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 7 · Regularization for Deep Learning — Parameter Penalties, Constraints & Under-Constrained Problems</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700;800&family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root{
+  --paper:#E6E9E3;       /* drafting / graph paper */
+  --panel:#F7F8F3;       /* vellum panel */
+  --ink:#14171B;
+  --ink2:#4B515A;
+  --pri:#6C30D9;         /* violet — regularization / L2 / the penalty */
+  --acc:#C81C6E;         /* rose  — L1 / sparsity */
+  --sec:#0F7C87;         /* teal  — data term / loss / w* */
+  --warn:#B27412;        /* amber — caution / notes */
+  --rule:rgba(20,23,27,.16);
+  --rule-2:rgba(20,23,27,.34);
+  --disp:'Saira Condensed','Arial Narrow',sans-serif;
+  --body:'Spectral',Georgia,serif;
+  --mono:'IBM Plex Mono',ui-monospace,Consolas,monospace;
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:96px}
+body{
+  margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);
+  font-size:16px;line-height:1.62;
+  background-image:
+    linear-gradient(rgba(20,23,27,.045) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(20,23,27,.045) 1px,transparent 1px);
+  background-size:34px 34px;
+}
+h1,h2,h3,h4{font-family:var(--disp);text-transform:uppercase;letter-spacing:.045em;line-height:1.05;margin:0}
+p{margin:0 0 .85em}
+a{color:var(--sec)}
+:focus-visible{outline:2.5px solid var(--pri);outline-offset:3px}
+
+/* ---------- top bar ---------- */
+.hud{position:sticky;top:0;z-index:40;background:rgba(230,233,227,.93);backdrop-filter:blur(7px);
+  border-bottom:1.5px solid var(--rule-2)}
+.hud-in{max-width:1280px;margin:0 auto;padding:9px 20px;display:flex;align-items:center;gap:18px}
+.hud-id{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink2)}
+.hud-id b{color:var(--pri);font-weight:600}
+.hud-title{font-family:var(--disp);font-weight:800;font-size:17px;letter-spacing:.06em;margin-right:auto}
+.hud-prog{display:flex;align-items:center;gap:9px;font-family:var(--mono);font-size:11px;color:var(--ink2)}
+.prog-track{width:130px;height:5px;background:rgba(20,23,27,.14);border-radius:0}
+.prog-fill{height:100%;width:0;background:var(--pri);transition:width .25s}
+
+/* ---------- shell ---------- */
+.shell{max-width:1080px;margin:0 auto;padding:0 20px 90px;display:block}
+.rail{position:fixed;top:0;left:0;bottom:0;width:280px;max-width:82vw;background:var(--panel);border-right:1.5px solid var(--rule-2);
+  padding:20px 22px 30px;z-index:70;overflow-y:auto;transform:translateX(-104%);transition:transform .28s ease;box-shadow:6px 0 22px rgba(20,23,27,.14)}
+.rail.open{transform:none}
+.rail-bg{position:fixed;inset:0;background:rgba(20,23,27,.38);z-index:65;opacity:0;pointer-events:none;transition:opacity .25s}
+.rail-bg.on{opacity:1;pointer-events:auto}
+.rail-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--rule-2)}
+.rail-h{font-family:var(--mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink2)}
+.rail-x{border:1px solid var(--rule-2);background:var(--paper);color:var(--ink);font-family:var(--mono);font-size:13px;line-height:1;
+  width:28px;height:28px;cursor:pointer}
+.rail-x:hover{background:var(--pri);color:var(--panel);border-color:var(--pri)}
+.ham{flex:none;display:flex;flex-direction:column;justify-content:center;gap:5px;width:40px;height:34px;padding:0 9px;
+  border:1px solid var(--rule-2);background:var(--panel);cursor:pointer}
+.ham span{display:block;height:2px;background:var(--ink);transition:transform .25s,opacity .2s}
+.ham:hover span{background:var(--pri)}
+.ham.open span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+.ham.open span:nth-child(2){opacity:0}
+.ham.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+.rail a{display:flex;gap:10px;align-items:baseline;padding:6px 0;text-decoration:none;color:var(--ink2);font-family:var(--disp);
+  font-size:14.5px;letter-spacing:.05em;text-transform:uppercase;border-bottom:1px dotted transparent}
+.rail a span{font-family:var(--mono);font-size:10px;color:var(--pri);min-width:20px}
+.rail a:hover{color:var(--ink)}
+.rail a.on{color:var(--ink);font-weight:700}
+.rail a.on span{background:var(--pri);color:var(--panel);padding:1px 3px}
+
+/* ---------- hero ---------- */
+.hero{padding:34px 0 8px}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--pri)}
+.hero h1{font-size:clamp(38px,6.4vw,74px);font-weight:800;margin:10px 0 6px;letter-spacing:.02em}
+.hero h1 em{font-style:normal;color:var(--pri)}
+.hero-sub{max-width:60ch;color:var(--ink2);font-size:17px}
+.chartbox{margin-top:22px;border:1.5px solid var(--rule-2);background:var(--panel);position:relative;overflow:hidden}
+.chartbox svg{display:block;width:100%;height:auto}
+.chart-cap{display:flex;flex-wrap:wrap;gap:6px 20px;padding:9px 14px;border-top:1px solid var(--rule);font-family:var(--mono);
+  font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2)}
+.wp{cursor:pointer}
+.wp circle{transition:r .18s,fill .18s}
+.wp:hover circle.hit{r:15}
+.wp:hover text{fill:var(--pri)}
+
+/* ---------- sections ---------- */
+.leg{padding:52px 0 8px;border-top:1.5px solid var(--rule-2);margin-top:44px}
+.leg-head{display:flex;gap:14px;align-items:flex-start;margin-bottom:20px}
+.leg-no{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--panel);background:var(--ink);padding:3px 6px;margin-top:5px;white-space:nowrap}
+.leg h2{font-size:clamp(25px,3.6vw,38px);font-weight:800}
+.leg-kicker{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--pri);margin-bottom:4px}
+.lede{font-size:17.5px;max-width:68ch}
+
+.panel{background:var(--panel);border:1.5px solid var(--rule-2);padding:20px 22px;margin:20px 0}
+.panel-t{font-family:var(--disp);font-weight:700;font-size:16px;letter-spacing:.09em;text-transform:uppercase;
+  display:flex;align-items:center;gap:9px;margin-bottom:14px;padding-bottom:9px;border-bottom:1px solid var(--rule)}
+.panel-t::before{content:"";width:9px;height:9px;background:var(--pri);flex:none;transform:rotate(45deg)}
+.panel-t small{margin-left:auto;font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--ink2);text-transform:uppercase;font-weight:400}
+
+.two{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.three{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+
+/* key list */
+ul.kl{list-style:none;padding:0;margin:0}
+ul.kl li{padding:7px 0 7px 20px;border-bottom:1px dotted var(--rule-2);position:relative}
+ul.kl li:last-child{border-bottom:0}
+ul.kl li::before{content:"▸";position:absolute;left:0;color:var(--pri);font-size:12px;top:8px}
+ul.kl b{font-family:var(--disp);font-size:16px;letter-spacing:.04em;text-transform:uppercase}
+.mono{font-family:var(--mono);font-size:12.5px}
+.def{border-left:3px solid var(--pri);padding:2px 0 2px 14px;margin:14px 0;font-size:17px}
+.note{background:rgba(178,116,18,.1);border:1px solid rgba(178,116,18,.45);padding:11px 14px;font-size:14.5px;margin:14px 0}
+.note b{font-family:var(--disp);letter-spacing:.06em;text-transform:uppercase;color:var(--warn)}
+
+/* plain-words (grade-6) explainer */
+.eli{background:rgba(15,124,135,.06);border:1.5px solid rgba(15,124,135,.38);border-left:5px solid var(--sec);
+  padding:14px 18px 13px;margin:18px 0}
+.eli-h{display:flex;align-items:center;gap:9px;font-family:var(--disp);font-weight:700;font-size:14px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--sec);margin-bottom:9px}
+.eli-h::before{content:"";width:11px;height:11px;border-radius:50%;background:var(--sec);box-shadow:0 0 0 3px rgba(15,124,135,.22);flex:none}
+.eli-h small{margin-left:auto;font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;color:var(--ink2);font-weight:400}
+.eli p{font-size:16px;line-height:1.66;margin:0 0 .6em}
+.eli p:last-child{margin-bottom:0}
+.eli b{color:var(--ink);font-weight:600}
+.eli .pic{font-style:italic;color:var(--sec)}
+
+/* display equation */
+.eqn{font-family:var(--mono);font-size:15px;line-height:1.9;background:rgba(108,48,217,.055);border-left:4px solid var(--pri);
+  padding:12px 16px;margin:14px 0;overflow-x:auto;letter-spacing:.01em}
+.eqn .lbl{color:var(--ink2);font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+.eqn b{color:var(--pri)} .eqn .t{color:var(--sec)}
+sub,sup{font-size:.72em;line-height:0}
+
+/* table */
+table.t{width:100%;border-collapse:collapse;font-size:14px}
+table.t th{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;text-align:left;
+  padding:8px 9px;border-bottom:1.5px solid var(--ink);color:var(--ink2)}
+table.t td{padding:8px 9px;border-bottom:1px solid var(--rule);vertical-align:top}
+table.t tr:hover td{background:rgba(108,48,217,.06)}
+table.t td.hl{color:var(--pri);font-weight:600}
+
+/* controls */
+.ctl{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+button.chip{font-family:var(--disp);font-size:14px;letter-spacing:.06em;text-transform:uppercase;padding:6px 13px;
+  background:transparent;border:1.5px solid var(--rule-2);color:var(--ink2);cursor:pointer}
+button.chip:hover{border-color:var(--ink);color:var(--ink)}
+button.chip.on{background:var(--ink);border-color:var(--ink);color:var(--panel)}
+button.chip.mag.on{background:var(--pri);border-color:var(--pri)}
+button.chip.rose.on{background:var(--acc);border-color:var(--acc)}
+.slider{display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:center;margin:12px 0}
+.slider label{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink2);grid-column:1/-1}
+.slider input[type=range]{width:100%;accent-color:var(--pri)}
+.slider output{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--pri);min-width:92px;text-align:right}
+input[type=number]{font-family:var(--mono);font-size:13px;padding:5px 7px;border:1.5px solid var(--rule-2);background:#fff;width:100%}
+.field{margin-bottom:9px}
+.field label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink2);margin-bottom:3px}
+
+/* readouts */
+.reads{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:1.5px;background:var(--rule-2);border:1.5px solid var(--rule-2)}
+.read{background:var(--panel);padding:10px 12px}
+.read i{font-style:normal;display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2)}
+.read b{display:block;font-family:var(--disp);font-size:26px;font-weight:700;letter-spacing:.02em;line-height:1.15}
+.read b s{text-decoration:none;font-size:13px;color:var(--ink2);font-weight:500}
+.read.warn b{color:var(--warn)} .read.bad b{color:var(--acc)} .read.good b{color:var(--sec)} .read.pri b{color:var(--pri)}
+
+/* detail block */
+.detail{margin-top:14px;border-top:1px solid var(--rule);padding-top:12px;min-height:104px}
+.detail h4{font-size:19px;margin-bottom:3px}
+.detail .spec{font-family:var(--mono);font-size:11.5px;color:var(--pri);letter-spacing:.06em;margin-bottom:7px}
+
+/* cards */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:12px}
+.card{border:1.5px solid var(--rule-2);background:var(--panel);padding:14px;cursor:pointer;transition:transform .16s}
+.card:hover{transform:translateY(-3px);border-color:var(--pri)}
+.card h4{font-size:16px;margin-bottom:5px}
+.card .tag{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--pri)}
+.card p{font-size:14px;margin:6px 0 0;color:var(--ink2)}
+.card .fix{display:none;margin-top:9px;padding-top:8px;border-top:1px dotted var(--rule-2);font-size:13.5px}
+.card.open .fix{display:block}
+.card.open{border-color:var(--pri)}
+
+/* quiz */
+.q{border-bottom:1px solid var(--rule);padding:14px 0}
+.q p.stem{font-weight:600;margin-bottom:8px}
+.opt{display:block;width:100%;text-align:left;font-family:var(--body);font-size:14.5px;padding:6px 11px;margin-bottom:5px;
+  background:#fff;border:1.5px solid var(--rule);cursor:pointer;color:var(--ink)}
+.opt:hover{border-color:var(--ink2)}
+.opt.right{border-color:var(--sec);background:rgba(15,124,135,.11);font-weight:600}
+.opt.wrong{border-color:var(--acc);background:rgba(200,28,110,.09);text-decoration:line-through}
+.exp{display:none;font-size:13.5px;color:var(--ink2);border-left:3px solid var(--sec);padding-left:11px;margin-top:7px}
+.exp.show{display:block}
+
+/* misc */
+.stat-row{display:flex;flex-wrap:wrap;gap:10px;font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2)}
+.foot{margin-top:52px;border-top:1.5px solid var(--rule-2);padding-top:16px;font-family:var(--mono);font-size:11px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink2);display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between}
+.badge{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  border:1px solid var(--rule-2);padding:1px 6px;color:var(--ink2)}
+
+/* figures */
+.fig{margin:20px 0;border:1.5px solid var(--rule-2);background:var(--panel);padding:16px 18px 12px}
+.fig svg{display:block;width:100%;height:auto}
+.fig figcaption{margin-top:11px;padding-top:9px;border-top:1px solid var(--rule);font-family:var(--mono);
+  font-size:11px;letter-spacing:.05em;color:var(--ink2);line-height:1.55}
+.fig figcaption b{color:var(--pri);letter-spacing:.14em;margin-right:6px}
+
+/* abbreviations */
+abbr[title]{border-bottom:1px dotted var(--pri);text-decoration:none;cursor:help}
+abbr[title]:hover{background:rgba(108,48,217,.1)}
+.abbr-pop{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--ink);color:var(--panel);
+  font-family:var(--mono);font-size:12.5px;line-height:1.5;padding:9px 15px;z-index:60;max-width:min(92vw,540px);
+  opacity:0;pointer-events:none;transition:opacity .18s;border-left:4px solid var(--pri)}
+.abbr-pop.on{opacity:1}
+
+/* key takeaways */
+.tk{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1.5px;background:var(--rule-2);border:1.5px solid var(--rule-2)}
+.tk-item{background:var(--panel);padding:17px 18px;display:flex;gap:14px;align-items:flex-start}
+.tk-item i{font-style:normal;font-family:var(--disp);font-size:30px;font-weight:800;color:var(--pri);line-height:.9;min-width:36px}
+.tk-item h4{font-size:16.5px;margin-bottom:5px}
+.tk-item p{font-size:14.5px;margin:0;color:var(--ink2);line-height:1.55}
+.headline{border:1.5px solid var(--ink);background:var(--ink);color:var(--paper);padding:20px 22px;margin:20px 0}
+.headline h3{font-size:clamp(19px,2.6vw,26px);color:var(--paper);margin-bottom:8px}
+.headline p{margin:0;font-size:16px;opacity:.92}
+.headline b{color:#C79BF0}
+
+/* glossary */
+.gloss{column-count:2;column-gap:28px}
+.gloss div{break-inside:avoid;padding:5px 0;border-bottom:1px dotted var(--rule);font-size:14px;line-height:1.45}
+.gloss b{font-family:var(--mono);font-size:12px;color:var(--pri);letter-spacing:.03em}
+input.search{font-family:var(--mono);font-size:13px;padding:7px 10px;border:1.5px solid var(--rule-2);background:#fff;width:100%;margin-bottom:14px}
+
+/* code */
+pre.code{background:#14171B;color:#E9EDDD;font-family:var(--mono);font-size:12.5px;line-height:1.65;
+  padding:13px 16px;overflow-x:auto;margin:12px 0;border-left:4px solid var(--pri)}
+pre.code .c{color:#8a967f}
+pre.code .k{color:#C79BF0}
+pre.code .s{color:#7fc8d2}
+
+/* labs */
+.lab{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0}
+.cv{border:1.5px solid var(--rule-2);background:#fff}
+.cv canvas{display:block;width:100%;height:auto}
+.cv-cap{font-family:var(--mono);font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink2);
+  padding:6px 9px;border-top:1px solid var(--rule);background:var(--panel)}
+.bar-row{display:grid;grid-template-columns:130px 1fr 92px;gap:10px;align-items:center;font-family:var(--mono);
+  font-size:11px;letter-spacing:.04em;margin:6px 0}
+.bar-row .tr{background:rgba(20,23,27,.1);height:13px;position:relative}
+.bar-row .fl{position:absolute;left:0;top:0;bottom:0;background:var(--pri);transition:width .18s}
+.bar-row .fl.rose{background:var(--acc)} .bar-row .fl.sec{background:var(--sec)} .bar-row .fl.dim{background:var(--rule-2)}
+.bar-row b{text-align:right;font-weight:600}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink2);margin:8px 0}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:16px;height:3px;display:inline-block}
+.contour-wrap{border:1.5px solid var(--rule-2);background:#fff}
+.contour-wrap svg{display:block;width:100%;height:auto}
+
+@media(max-width:960px){
+  .hud-title{font-size:14px}
+  .two,.three,.lab{grid-template-columns:1fr}
+  .gloss{column-count:1}
+}
+@media(prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+  html{scroll-behavior:auto}
+}
+
+/* in-practice use-case block */
+.uc{background:rgba(108,48,217,.05);border:1.5px solid rgba(108,48,217,.32);border-left:5px solid var(--pri);padding:14px 18px 13px;margin:18px 0}
+.uc-h{display:flex;align-items:center;gap:9px;font-family:var(--disp);font-weight:700;font-size:14px;letter-spacing:.1em;text-transform:uppercase;color:var(--pri);margin-bottom:9px}
+.uc-h::before{content:"";width:11px;height:11px;background:var(--pri);transform:rotate(45deg);flex:none}
+.uc-h .tag{margin-left:auto;font-family:var(--mono);font-size:9px;letter-spacing:.12em;color:var(--pri);font-weight:400;border:1px solid rgba(108,48,217,.4);padding:2px 7px;text-transform:uppercase}
+.uc p{font-size:15px;line-height:1.6;margin:0 0 .55em}
+.uc p:last-child{margin-bottom:0}
+.uc b{color:var(--ink);font-weight:600}
+.uc .case{font-family:var(--mono);font-size:11.5px;line-height:1.5;color:var(--ink2);margin-top:9px;padding-top:9px;border-top:1px dashed var(--rule-2)}
+.uc .case b{color:var(--pri)}
+</style>
+</head>
+<body>
+
+<div class="hud">
+  <div class="hud-in">
+    <button class="ham" id="ham" aria-label="Open traverse menu" aria-expanded="false" aria-controls="rail"><span></span><span></span><span></span></button>
+    <div class="hud-id">CH <b>07</b></div>
+    <div class="hud-title">Regularization for Deep Learning</div>
+    <div class="hud-prog"><span id="progTxt">0%</span><div class="prog-track"><div class="prog-fill" id="progFill"></div></div></div>
+  </div>
+</div>
+
+<div class="shell">
+
+  <nav class="rail no-abbr" id="rail" aria-label="Traverse menu">
+    <div class="rail-top"><div class="rail-h">Traverse / 8 stations + summary</div><button class="rail-x" id="railX" aria-label="Close menu">&#10005;</button></div>
+    <a href="#l1"><span>01</span>What regularization is</a>
+    <a href="#l2"><span>02</span>L² weight decay</a>
+    <a href="#l3"><span>03</span>L² &amp; the Hessian</a>
+    <a href="#l4"><span>04</span>L¹ &amp; sparsity</a>
+    <a href="#l5"><span>05</span>L¹ vs L² · priors</a>
+    <a href="#l6"><span>06</span>Penalties as constraints</a>
+    <a href="#l7"><span>07</span>Explicit constraints</a>
+    <a href="#l8"><span>08</span>Under-constrained</a>
+    <a href="#l9"><span>09</span>Revision + quiz</a>
+    <a href="#l10"><span>Σ</span>Key takeaways</a>
+  </nav>
+  <div class="rail-bg" id="railBg"></div>
+
+  <main>
+
+  <!-- ================= HERO ================= -->
+  <header class="hero">
+    <div class="eyebrow">Deep learning · Chapter 7 · Parameter penalties</div>
+    <h1>Let the data pull.<br>Then <em>rein it in</em>.</h1>
+    <p class="hero-sub">A learning algorithm left alone will chase the training set to the bottom of its loss valley — overfitting on the way. Regularization adds a second, opposing force that pulls the weights back toward the origin. Every figure below is drawn live: the loss contours, the constraint regions, the soft-threshold curves and the runaway weights of a separable problem are all real geometry computed in your browser, the same maths behind ridge, LASSO and weight decay.</p>
+
+    <div class="chartbox">
+      <svg viewBox="0 0 960 372" role="img" aria-label="A loss landscape drawn as contour rings, with a constraint region reining the optimizer back from the data optimum">
+        <defs>
+          <path id="rt" d="M60 330 L120 300 L188 314 L250 268 L320 286 L388 236 L452 258 L520 210 L586 232 L650 190 L712 208 L772 176 L720 150 L648 138 L604 120 L620 96" fill="none"/>
+        </defs>
+        <rect width="960" height="372" fill="#F7F8F3"/>
+
+        <!-- loss basin contours around w* -->
+        <g transform="translate(620,96)">
+          <g stroke="#0F7C87" fill="none" opacity=".9">
+            <ellipse rx="230" ry="150" transform="rotate(-24)" stroke-width="1" opacity=".22"/>
+            <ellipse rx="186" ry="121" transform="rotate(-24)" stroke-width="1" opacity=".3"/>
+            <ellipse rx="143" ry="93" transform="rotate(-24)" stroke-width="1" opacity=".4"/>
+            <ellipse rx="101" ry="66" transform="rotate(-24)" stroke-width="1.1" opacity=".55"/>
+            <ellipse rx="60"  ry="39" transform="rotate(-24)" stroke-width="1.2" opacity=".7"/>
+            <ellipse rx="24"  ry="16" transform="rotate(-24)" stroke-width="1.4" opacity=".9"/>
+          </g>
+          <circle r="4.5" fill="#0F7C87"/>
+          <text x="10" y="-8" font-family="IBM Plex Mono,monospace" font-size="10" fill="#0F7C87">w*  ·  data optimum</text>
+        </g>
+
+        <!-- origin + constraint region -->
+        <g transform="translate(300,232)">
+          <circle r="118" fill="url(#hatchv)" stroke="#6C30D9" stroke-width="1.4" stroke-dasharray="7 5" opacity=".9"/>
+          <circle r="3.5" fill="#14171B"/>
+          <text x="0" y="150" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9" letter-spacing="1.4" fill="#6C30D9">CONSTRAINT REGION  ‖w‖ ≤ k</text>
+          <text x="8" y="14" font-family="IBM Plex Mono,monospace" font-size="9.5" fill="#14171B">origin</text>
+        </g>
+        <defs>
+          <pattern id="hatchv" width="7" height="7" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+            <line x1="0" y1="0" x2="0" y2="7" stroke="#6C30D9" stroke-width="1" opacity=".25"/>
+          </pattern>
+        </defs>
+
+        <!-- regularized solution where region meets a contour -->
+        <g transform="translate(406,168)">
+          <circle r="5.2" fill="#C81C6E"/>
+          <circle r="10" fill="none" stroke="#C81C6E" stroke-width="1.3"/>
+          <text x="12" y="-8" font-family="IBM Plex Mono,monospace" font-size="10" fill="#C81C6E">w̃  ·  where the forces balance</text>
+        </g>
+
+        <!-- descent traverse -->
+        <use href="#rt" stroke="#14171B" stroke-width="2" stroke-dasharray="9 6" opacity=".7"/>
+        <g id="wps"></g>
+
+        <g id="opt">
+          <circle r="5" fill="#6C30D9"/>
+          <animateMotion dur="17s" repeatCount="indefinite" rotate="0"><mpath href="#rt"/></animateMotion>
+        </g>
+
+        <text x="40" y="40" font-family="IBM Plex Mono,monospace" font-size="10" letter-spacing="1.4" fill="#14171B">LOSS LANDSCAPE · WEIGHT SPACE (w₁, w₂)</text>
+        <g transform="translate(40,352)" font-family="IBM Plex Mono,monospace" font-size="8" fill="#4B515A">
+          <line x1="0" y1="0" x2="70" y2="0" stroke="#4B515A" stroke-width="1.2"/>
+          <text x="0" y="12">increasing regularization α  →  smaller region  →  w̃ nearer 0</text>
+        </g>
+      </svg>
+      <div class="chart-cap">
+        <span>◆ 8 stations · 6 live labs</span>
+        <span>◆ Goodfellow · Deep Learning · §7.1–7.3</span>
+        <span>◆ all geometry computed in-browser</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= 01 WHAT REGULARIZATION IS ================= -->
+  <section class="leg" id="l1">
+    <div class="leg-head"><div class="leg-no">ST 01</div><div>
+      <div class="leg-kicker">Departure · The objective</div><h2>What Regularization Is</h2></div></div>
+
+    <p class="lede">Regularization is <b>any modification we make to a learning algorithm that is intended to reduce its generalization error but not its training error</b>. The most classical form does this by adding a penalty on the size of the parameters directly to the cost the optimizer minimizes — trading a little fit for a lot of faith that the model will hold up on unseen data.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> imagine teaching a puppy to walk to you across a park. If you just let it run, it might sprint past you and dash into the road. So you clip on a leash — the puppy still moves toward you, but a gentle backward tug stops it going too far.</p>
+      <p>Regularization is that leash for a learning machine. The "puppy" is the model's <b>weights</b> — the numbers it uses to make decisions. Left alone, they run hard to match every tiny detail of the practice questions, which is like memorizing answers instead of really learning (grown-ups call that <b>overfitting</b>). The leash is a small rule that tugs those numbers back toward zero, so the model learns the <b>main idea</b> and still does well on new questions it has never seen. The knob called <b>α (alpha)</b> is how tightly you pull: α = 0 means no leash at all, and a bigger α means a firmer tug.</p>
+    </div>
+
+    <div class="def">A <b>parameter norm penalty</b> augments the objective with a term Ω(θ) that grows as the weights grow, scaled by a hyperparameter α that sets how hard the penalty pulls.</div>
+
+    <div class="eqn"><span class="lbl">Regularized objective</span><br>
+      J&#771;(<b>θ</b>; X, y) = <span class="t">J(<b>θ</b>; X, y)</span> + α · <b>Ω(θ)</b> , &nbsp;&nbsp; α ∈ [0, ∞)</div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panel-t">The two forces</div>
+        <ul class="kl">
+          <li><b>Data term J = </b>the ordinary loss (cross-entropy, MSE…). Its gradient pulls the weights toward w*, the fit that minimizes training error.</li>
+          <li><b>Penalty term αΩ = </b>a spring back toward the origin. Its gradient pulls the weights toward 0.</li>
+          <li><b>α is the dial = </b>α = 0 recovers the unregularized problem; larger α weights the penalty more, shrinking the weights. It is a hyperparameter you tune on a validation set, not learned.</li>
+          <li><b>The solution w̃ = </b>sits where the two gradients cancel — not at w*, not at 0, but at the balance point.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <div class="panel-t">Why penalize weights, not biases <small>An exam favourite</small></div>
+        <p style="font-size:14.5px">The vector <span class="mono">w</span> is the weights; <span class="mono">θ = {w, b}</span> is everything. We normally penalize only <b>w</b> and leave the biases <b>b</b> alone.</p>
+        <ul class="kl">
+          <li><b>Weights = </b>each couples two variables, so fitting one well needs seeing both under many conditions — prone to overfit, worth regularizing.</li>
+          <li><b>Biases = </b>each controls a single variable, so it is fit accurately from far less data. Regularizing it mostly just adds underfitting for no benefit.</li>
+          <li><b>Per-layer α = </b>in principle a separate α per layer; searching them all is expensive, so a single α is a reasonable default.</li>
+        </ul>
+      </div>
+    </div>
+
+    <figure class="fig">
+      <svg viewBox="0 0 640 160" aria-label="A one-dimensional number line showing the data gradient pulling right toward w-star and the penalty pulling left toward zero, meeting at w-tilde">
+        <line x1="40" y1="96" x2="600" y2="96" stroke="#14171B" stroke-width="1.6"/>
+        <line x1="120" y1="90" x2="120" y2="102" stroke="#14171B" stroke-width="1.4"/>
+        <text x="120" y="122" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="10" fill="#14171B">0</text>
+        <circle cx="120" cy="96" r="4" fill="#14171B"/>
+        <circle cx="520" cy="96" r="5" fill="#0F7C87"/><text x="520" y="80" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="11" fill="#0F7C87">w*</text>
+        <circle cx="360" cy="96" r="6" fill="#C81C6E"/><text x="360" y="78" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="11" fill="#C81C6E">w&#771;</text>
+        <!-- penalty force -->
+        <line x1="352" y1="118" x2="300" y2="118" stroke="#6C30D9" stroke-width="2.4"/><path d="M300 118 l8 -4 l0 8 Z" fill="#6C30D9"/>
+        <text x="326" y="140" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9.5" fill="#6C30D9">penalty −αw</text>
+        <!-- data force -->
+        <line x1="368" y1="118" x2="440" y2="118" stroke="#0F7C87" stroke-width="2.4"/><path d="M440 118 l-8 -4 l0 8 Z" fill="#0F7C87"/>
+        <text x="410" y="140" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9.5" fill="#0F7C87">data −∇J</text>
+        <text x="320" y="40" font-family="IBM Plex Mono,monospace" font-size="10" fill="#4B515A">at w&#771; the two gradients are equal and opposite: ∇J(w&#771;) = −αw&#771;</text>
+      </svg>
+      <figcaption><b>FIG 01</b> Regularization is a tug of war on the weight axis. The data term hauls toward the training optimum w*; the penalty hauls toward 0. The regularized weight w&#771; is the truce line — and moving α slides it left or right.</figcaption>
+    </figure>
+
+    <div class="note"><b>Frame it right.</b> Regularization is not "make the model worse." It deliberately raises training error a little so that the gap between training and test error shrinks more. The target is always generalization.</div>
+  
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">The core problem</span></div>
+      <p>The moment you reach for regularization: your model scores <b>99% on the training set but 82% on validation</b>. That gap is overfitting, and every method in this course exists to close it.</p>
+      <p>It bites hardest when data is scarce. Train a CNN on a few thousand chest X-rays and it memorises them in a handful of epochs — perfect on what it has seen, useless on the next patient. Regularization is what turns that memoriser into a model a radiologist can trust on new scans.</p>
+      <div class="case"><b>Rule of thumb:</b> a big train–validation gap ⇒ add regularization or data; poor scores even on training ⇒ the model is too small (underfitting) instead.</div>
+    </div>
+  </section>
+
+  <!-- ================= 02 L2 WEIGHT DECAY ================= -->
+  <section class="leg" id="l2">
+    <div class="leg-head"><div class="leg-no">ST 02</div><div>
+      <div class="leg-kicker">The workhorse penalty</div><h2>L² Regularization — Weight Decay</h2></div></div>
+
+    <p class="lede">The most common penalty is half the squared L² norm of the weights. In statistics it is <b>ridge regression</b> or <b>Tikhonov regularization</b>; in deep learning it is <b>weight decay</b>. Its whole effect on a single gradient step is beautifully simple: shrink the weights a touch, then do the usual update.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> think of each of the model's numbers as air in a balloon that has a tiny slow leak. Every single step of learning, a little air escapes, so the number gets a bit smaller <b>before</b> the model does its normal work.</p>
+      <p>That quiet shrinking is the whole trick, and it is why we call it "decay" — the same way a battery slowly drains or a balloon slowly deflates. Each step, every weight is multiplied by something just under 1 (say 0.99). Do that thousands of times and the big, showy numbers fade away — unless the data keeps a good reason to pump them back up. Nothing gets yanked to zero all at once; it just gets gently smaller, again and again.</p>
+    </div>
+
+    <div class="eqn"><span class="lbl">L² penalty and objective</span><br>
+      Ω(<b>θ</b>) = ½‖w‖<sub>2</sub><sup>2</sup> = ½ wᵀw &nbsp;&nbsp;⟹&nbsp;&nbsp; J&#771;(w) = <span class="t">J(w)</span> + <b>(α/2) wᵀw</b></div>
+
+    <div class="panel">
+      <div class="panel-t">Where "decay" comes from</div>
+      <div class="two">
+        <div>
+          <p style="font-size:15px">The gradient of the regularized objective just adds αw:</p>
+          <div class="eqn" style="font-size:14px">∇<sub>w</sub> J&#771; = ∇<sub>w</sub> J + <b>αw</b></div>
+          <p style="font-size:15px">So a single gradient-descent step (learning rate ε) becomes:</p>
+          <div class="eqn" style="font-size:14px">w ← w − ε(∇<sub>w</sub>J + αw)<br>&nbsp;&nbsp;&nbsp;= <b>(1 − εα) w</b> − ε ∇<sub>w</sub>J</div>
+          <p style="font-size:14.5px;color:var(--ink2)">Before every ordinary update, the weight vector is first multiplied by a constant factor just under 1. It <i>decays</i>. That single multiplication is the entire mechanism.</p>
+        </div>
+        <div>
+          <div class="panel-t" style="border:0;padding:0;margin-bottom:8px">Decay-per-step meter <small>Live</small></div>
+          <div class="slider"><div class="field"><label>Learning rate ε</label><input type="range" id="wdEps" min="1" max="60" value="10"></div><output id="wdEpso" class="mono">0.010</output></div>
+          <div class="slider"><div class="field"><label>Reg. strength α</label><input type="range" id="wdA" min="0" max="200" value="50"></div><output id="wdAo" class="mono">0.50</output></div>
+          <div class="reads">
+            <div class="read pri"><i>Shrink factor (1 − εα)</i><b id="wdF">—</b></div>
+            <div class="read warn"><i>Per-step decay</i><b id="wdP">— <s>%</s></b></div>
+          </div>
+          <div class="cv" style="margin-top:12px"><canvas id="wdCanvas" width="480" height="150"></canvas><div class="cv-cap">A weight starting at 1.0, decayed by (1 − εα) every step, gradient set aside</div></div>
+          <p style="font-size:13px;color:var(--ink2);margin-top:8px" id="wdNote">—</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Weight decay in code</div>
+<pre class="code no-abbr">loss = data_loss(y_hat, y) + (alpha/2) * (weights ** 2).sum()   <span class="c"># explicit penalty</span>
+
+<span class="c"># or, equivalently, fold it into the optimizer:</span>
+optimizer = torch.optim.SGD(model.parameters(), lr=eps, weight_decay=alpha)
+<span class="c"># each step does:  w &lt;- (1 - eps*alpha) * w  -  eps * grad</span></pre>
+      <div class="note"><b>Watch the coupling.</b> Because the decay is (1 − εα), the <i>effective</i> regularization depends on the learning rate. Change ε and you silently change how hard weight decay bites — one reason optimizers like AdamW separate the two.</div>
+    </div>
+  
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">The default dial</span></div>
+      <p>Weight decay is the most-used regularizer in deep learning — a one-line argument in every optimizer. A <b>ResNet on ImageNet</b> trains with weight decay near 1e-4; a small model on a small dataset might use 1e-2.</p>
+      <p>One catch practitioners hit: with Adam, naïve L² and true weight decay differ, which is exactly why <b>AdamW</b> ('decoupled weight decay') exists and is now standard for training Transformers.</p>
+      <div class="case"><b>Typical setting:</b> weight_decay = 0.01 with AdamW; sweep 1e-4 → 1e-2 and pick the value with the best validation score.</div>
+    </div>
+  </section>
+
+  <!-- ================= 03 L2 & THE HESSIAN ================= -->
+  <section class="leg" id="l3">
+    <div class="leg-head"><div class="leg-no">ST 03</div><div>
+      <div class="leg-kicker">Live lab · The geometry</div><h2>L² Through the Hessian</h2></div></div>
+
+    <p class="lede">To see <i>what</i> L² actually keeps and what it throws away, approximate the loss near the optimum w* by a quadratic bowl. The curvature of that bowl — the <b>Hessian</b> H — decides everything. L² rescales each eigen-direction of H independently, and the rescaling has a clean closed form.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> the model is trying to find the lowest spot in a valley by rolling a ball. Some valleys are steep and narrow like a deep bowl; others are wide and flat like a dinner plate. In a steep bowl the ball really wants the exact bottom — push it and it rolls straight back. On a flat plate the ball doesn't care where it sits — nudge it and it just stays put.</p>
+      <p>Regularization is a gentle push toward the middle (toward zero). On the <b>steep</b> directions that push barely moves the ball, because the valley fights back — those numbers clearly matter, so we keep them. On the <b>flat</b> directions the push slides the ball a long way toward zero, because nothing was holding it there — those numbers weren't doing much, so we let them shrink. The fancy word <b>Hessian</b> is just a way of measuring how steep the valley is in each direction.</p>
+    </div>
+
+    <div class="eqn"><span class="lbl">Quadratic approximation of J around its optimum w*</span><br>
+      J&#770;(w) = J(w*) + ½ (w − w*)ᵀ <b>H</b> (w − w*) &nbsp;&nbsp;⟹&nbsp;&nbsp; regularized optimum &nbsp; w&#771; = <b>(H + αI)<sup>−1</sup> H</b> w*</div>
+
+    <div class="eqn"><span class="lbl">In the eigenbasis H = QΛQᵀ, direction i is rescaled by a factor</span><br>
+      w&#771;<sub>i</sub> = <b>λ<sub>i</sub> / (λ<sub>i</sub> + α)</b> · w*<sub>i</sub></div>
+
+    <div class="panel">
+      <div class="panel-t">Contour &amp; constraint bench <small>The textbook figure, made live</small></div>
+      <div class="ctl" id="conCtl"></div>
+      <div class="two" style="grid-template-columns:1.15fr .85fr;gap:20px">
+        <div class="contour-wrap"><svg id="conSvg" viewBox="0 0 420 340" aria-label="Loss contours around the data optimum with an L1 or L2 constraint region and the regularized solution marked"></svg></div>
+        <div>
+          <div class="slider"><div class="field"><label>Regularization α</label><input type="range" id="conA" min="0" max="300" value="70"></div><output id="conAo" class="mono">0.70</output></div>
+          <div class="slider"><div class="field"><label>Curvature λ₁ (w₁ axis)</label><input type="range" id="conL1" min="15" max="600" value="380"></div><output id="conL1o" class="mono">3.80</output></div>
+          <div class="slider"><div class="field"><label>Curvature λ₂ (w₂ axis)</label><input type="range" id="conL2" min="15" max="600" value="70"></div><output id="conL2o" class="mono">0.70</output></div>
+          <div class="slider" id="conRotWrap"><div class="field"><label>Hessian rotation φ (L² only)</label><input type="range" id="conRot" min="0" max="90" value="0"></div><output id="conRoto" class="mono">0°</output></div>
+          <div class="reads" style="margin-top:6px">
+            <div class="read good"><i>‖w*‖ data optimum</i><b id="conNs">—</b></div>
+            <div class="read bad"><i>‖w&#771;‖ regularized</i><b id="conNt">—</b></div>
+            <div class="read pri"><i>Shrink</i><b id="conShr">— <s>%</s></b></div>
+            <div class="read warn"><i>Weights at ≈ 0</i><b id="conZero">—</b></div>
+          </div>
+          <p style="font-size:13px;color:var(--ink2);margin-top:10px" id="conMsg">—</p>
+        </div>
+      </div>
+      <div class="legend">
+        <span><i style="background:#0F7C87"></i>loss contours + w*</span>
+        <span><i style="background:#6C30D9"></i>L² region / solution</span>
+        <span><i style="background:#C81C6E"></i>L¹ region / solution</span>
+        <span><i style="background:#14171B"></i>origin &amp; tangent contour</span>
+      </div>
+    </div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panel-t">Which directions survive</div>
+        <p style="font-size:14.5px">The factor λ/(λ+α) is near <b>1</b> when λ ≫ α and near <b>0</b> when λ ≪ α. So L²:</p>
+        <ul class="kl">
+          <li><b>Keeps steep directions = </b>large λ (high curvature). Moving off w* here spikes the loss, so these weights genuinely reduce the objective — they are barely touched.</li>
+          <li><b>Decays flat directions = </b>small λ (low curvature). The loss hardly cares about them, so they contribute little and get shrunk toward 0 with almost no cost.</li>
+          <li><b>Half-life at α = λ = </b>when α equals an eigenvalue, that direction is cut exactly in half.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <div class="panel-t">Eigen-rescale meter <small>Drag α, watch each direction</small></div>
+        <div class="slider"><div class="field"><label>Regularization α</label><input type="range" id="eigA" min="0" max="400" value="80"></div><output id="eigAo" class="mono">0.80</output></div>
+        <div id="eigBars"></div>
+        <p style="font-size:13px;color:var(--ink2);margin-top:6px">Each bar is a Hessian eigen-direction; its length is the surviving fraction λ/(λ+α). Flat directions (small λ, left labels) collapse first.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Application — L² on linear regression</div>
+      <p style="font-size:15px">For linear regression the normal equations pick up an αI on the diagonal:</p>
+      <div class="eqn" style="font-size:14px">ordinary: w = (XᵀX)<sup>−1</sup> Xᵀy &nbsp;&nbsp;→&nbsp;&nbsp; ridge: w = <b>(XᵀX + αI)</b><sup>−1</sup> Xᵀy</div>
+      <p style="font-size:14.5px;color:var(--ink2)">Since XᵀX is proportional to the input covariance, adding αI inflates the apparent variance of every feature. Weights on features that already show high variance (and covary with the target) are hardly moved; weights on low-variance features are shrunk hardest — the same "keep steep, decay flat" story in the language of data.</p>
+    </div>
+  
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">Ridge regression</span></div>
+      <p>This is ridge regression's day job. When input features are <b>correlated</b> — economic indicators, neighbouring pixels, genomic markers that move together — plain least-squares becomes wildly unstable: tiny data changes swing the coefficients hugely.</p>
+      <p>Adding the L² term αI fixes the ill-conditioning. The flat, redundant directions get pulled toward zero while the well-determined directions are barely touched — exactly the eigenvalue story in the bench above.</p>
+      <div class="case"><b>Where it shows up:</b> multicollinearity in finance, econometrics and biology; the α on the diagonal is what makes the matrix safely invertible.</div>
+    </div>
+  </section>
+
+  <!-- ================= 04 L1 & SPARSITY ================= -->
+  <section class="leg" id="l4">
+    <div class="leg-head"><div class="leg-no">ST 04</div><div>
+      <div class="leg-kicker">Live lab · Sparsity</div><h2>L¹ Regularization &amp; Sparsity</h2></div></div>
+
+    <p class="lede">Swap the squared norm for the plain sum of absolute values and the behaviour changes qualitatively. L¹ does not merely shrink weights — it drives many of them to <b>exactly zero</b>, performing feature selection as a side effect. This is the LASSO.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> your pencil box is crammed with 50 pencils, but you really only use about 8. There are two ways to tidy up. L² sharpens <b>every</b> pencil down a little, so you still have all 50, just slightly shorter. L¹ is stricter — it says "if you barely use a pencil, throw it out completely," so you end up with just your 8 favourites and 42 empty slots.</p>
+      <p>Those empty slots are weights set to <b>exactly zero</b>, and having lots of zeros is called <b>sparsity</b>. It's useful because the model then ignores the inputs it doesn't need and tells you plainly which ones actually mattered. Why can L¹ throw things all the way to zero while L² only trims? Because L¹ keeps pushing with the <b>same</b> strength no matter how small a number gets, so it finishes the job — while L²'s push gets weaker as the number shrinks, so it never quite reaches zero.</p>
+    </div>
+
+    <div class="eqn"><span class="lbl">L¹ penalty and gradient</span><br>
+      Ω(<b>θ</b>) = ‖w‖<sub>1</sub> = Σ<sub>i</sub> |w<sub>i</sub>| &nbsp;&nbsp;⟹&nbsp;&nbsp; ∇<sub>w</sub>J&#771; = ∇<sub>w</sub>J + <b>α · sign(w)</b></div>
+
+    <p style="max-width:68ch">Notice the penalty gradient is <b>α·sign(w)</b> — a constant push toward zero whose size does not shrink as w shrinks. Under a diagonal-Hessian approximation the solution has a famous closed form, <b>soft thresholding</b>:</p>
+
+    <div class="eqn"><span class="lbl">Soft-threshold solution (H diagonal, H<sub>i,i</sub> &gt; 0)</span><br>
+      w&#771;<sub>i</sub> = sign(w*<sub>i</sub>) · <b>max{ |w*<sub>i</sub>| − α / H<sub>i,i</sub> , &nbsp; 0 }</b></div>
+
+    <div class="panel">
+      <div class="panel-t">Shrinkage bench <small>L¹ soft-threshold vs L² proportional shrink</small></div>
+      <div class="two" style="grid-template-columns:1fr 1fr">
+        <div class="cv"><canvas id="stCanvas" width="460" height="360"></canvas><div class="cv-cap">Output weight w&#771; (vertical) against unregularized weight w* (horizontal)</div></div>
+        <div>
+          <div class="slider"><div class="field"><label>Regularization α</label><input type="range" id="stA" min="0" max="200" value="60"></div><output id="stAo" class="mono">0.60</output></div>
+          <div class="slider"><div class="field"><label>Curvature H (per weight)</label><input type="range" id="stH" min="20" max="300" value="100"></div><output id="stHo" class="mono">1.00</output></div>
+          <div class="reads">
+            <div class="read bad"><i>L¹ dead-zone ±α/H</i><b id="stDz">—</b></div>
+            <div class="read pri"><i>L² slope H/(H+α)</i><b id="stSl">—</b></div>
+          </div>
+          <ul class="kl" style="margin-top:12px">
+            <li><b>L¹ (rose) = </b>flat and pinned to zero inside the dead zone, then a line parallel to the diagonal — every surviving weight is shifted toward 0 by a constant α/H. Small weights vanish outright.</li>
+            <li><b>L² (violet) = </b>a straight line through the origin with slope H/(H+α) &lt; 1 — every weight scaled down proportionally, but almost none hit exactly 0.</li>
+            <li><b>Grey = </b>the identity w&#771; = w* (no regularization).</li>
+          </ul>
+        </div>
+      </div>
+      <div class="note"><b>Why sparsity, in one line.</b> L²'s push toward 0 is αw — it fades as the weight shrinks, so it never quite finishes the job. L¹'s push is α·sign(w) — a constant that keeps shoving until the weight is pinned at 0.</div>
+    </div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panel-t">What sparsity buys you</div>
+        <ul class="kl">
+          <li><b>Feature selection = </b>zeroed weights mean their inputs are ignored entirely. The model tells you which features it doesn't need.</li>
+          <li><b>Interpretable, compact models = </b>fewer active parameters to store, reason about and deploy.</li>
+          <li><b>LASSO = </b>Least Absolute Shrinkage and Selection Operator — L¹-penalized linear regression, the canonical sparse estimator.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <div class="panel-t">L¹ in code</div>
+<pre class="code no-abbr">l1 = alpha * weights.abs().sum()       <span class="c"># Σ|w_i|</span>
+loss = data_loss(y_hat, y) + l1
+
+<span class="c"># proximal / soft-threshold step (ISTA):</span>
+w = w - eps * grad_data                <span class="c"># gradient of data term</span>
+t = eps * alpha
+w = sign(w) * clamp(abs(w) - t, min=0) <span class="c"># shrink toward 0, clip at 0</span></pre>
+        <p style="font-size:13.5px;color:var(--ink2)">The <span class="mono">clamp(abs(w) − t, min=0)</span> is the dead zone: anything smaller than the threshold t is set to exactly zero.</p>
+      </div>
+    </div>
+  
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">Feature selection</span></div>
+      <p>Reach for L¹ (LASSO) when you have <b>far more features than you need</b> and want the model to tell you which matter. Given thousands of candidate genes, or hundreds of financial signals, LASSO drives the useless coefficients to exactly zero and keeps a short, readable list.</p>
+      <p>The same trick powers <b>model compression</b>: L¹ pressure during training prunes weights away, shrinking a network for phones and embedded devices without a big accuracy hit.</p>
+      <div class="case"><b>Where it shows up:</b> genomics &amp; finance feature selection, sparse coding, network pruning — anywhere 'which inputs actually matter?' is the question.</div>
+    </div>
+  </section>
+
+  <!-- ================= 05 L1 vs L2 · PRIORS ================= -->
+  <section class="leg" id="l5">
+    <div class="leg-head"><div class="leg-no">ST 05</div><div>
+      <div class="leg-kicker">Comparison · Bayesian view</div><h2>L¹ vs L² &amp; the Priors Behind Them</h2></div></div>
+
+    <p class="lede">Both penalties fall out of the same Bayesian idea: put a prior on the weights that says "small is more probable," then do MAP estimation. The <i>shape</i> of that prior is exactly what separates shrinkage from sparsity.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> before you even look at the data, you can already have a hunch about what the answer should look like — like guessing a new friend's height before you meet them. L² and L¹ are two different hunches.</p>
+      <p>The L² hunch is a smooth round hill: "the numbers are probably smallish, none of them crazy-big." The L¹ hunch is a sharp mountain peak sitting right on zero: "most numbers are probably <b>exactly</b> zero, and only a few really matter." That sharp peak at zero is exactly why L¹ likes to set weights to zero — the hunch itself is already betting on zero. Grown-ups call this starting hunch a <b>prior</b> (what you believed <i>prior</i> to seeing the data), and mixing your hunch together with the data is called <b>MAP</b>.</p>
+    </div>
+
+    <div class="def">MAP estimation maximizes <span class="mono">log p(y | X, w) + log p(w)</span>. The log-prior <span class="mono">log p(w)</span> <i>is</i> the negative penalty −αΩ(w). A Gaussian prior gives L²; a Laplace prior gives L¹.</div>
+
+    <div class="panel">
+      <div class="panel-t">Prior shapes <small>Gaussian (L²) vs Laplace (L¹)</small></div>
+      <figure class="fig" style="margin:0;border:0;padding:0">
+        <svg id="priSvg" viewBox="0 0 640 240" aria-label="Gaussian and Laplace prior densities; the Laplace has a sharp peak at zero"></svg>
+        <figcaption><b>FIG 05</b> The Laplace prior (rose) has a sharp cusp at 0 and heavier tails; the Gaussian (violet) is smooth through 0. That cusp is the probabilistic origin of the soft-threshold dead zone — the MAP estimate is happy to park a weight exactly at the peak.</figcaption>
+      </figure>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Side by side</div>
+      <table class="t"><thead><tr><th>Property</th><th>L² · weight decay / ridge</th><th>L¹ · LASSO</th></tr></thead><tbody>
+        <tr><td class="hl">Penalty Ω(w)</td><td>½‖w‖₂² = ½ Σ wᵢ²</td><td>‖w‖₁ = Σ |wᵢ|</td></tr>
+        <tr><td class="hl">Penalty gradient</td><td>α w &nbsp;(shrinks with w)</td><td>α sign(w) &nbsp;(constant)</td></tr>
+        <tr><td class="hl">Effect on weights</td><td>Proportional shrink, factor λ/(λ+α)</td><td>Soft threshold — many exactly 0</td></tr>
+        <tr><td class="hl">Sparsity?</td><td>No — rarely exact zeros</td><td>Yes — built-in feature selection</td></tr>
+        <tr><td class="hl">Bayesian prior</td><td>Gaussian &nbsp;N(0, 1/α)</td><td>Laplace &nbsp;(isotropic)</td></tr>
+        <tr><td class="hl">Constraint ball</td><td>Circle / sphere (smooth)</td><td>Diamond / cross-polytope (cornered)</td></tr>
+        <tr><td class="hl">Solution</td><td>Closed form (linear)</td><td>No closed form in general; soft-threshold when H diagonal</td></tr>
+      </tbody></table>
+      <div class="note"><b>The corner is the point.</b> Go back to the contour bench and switch to L¹: the diamond's corners sit on the axes, so a loss contour usually first touches the region at a corner — and a corner means one coordinate is exactly zero. The sphere has no corners, so L² almost never lands a weight on an axis.</div>
+    </div>
+  
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">Elastic net</span></div>
+      <p>In practice you rarely have to choose: <b>Elastic Net</b> mixes L¹ and L² so you get sparsity <i>and</i> stability. It's the go-to when features come in correlated groups — pure LASSO would keep one member of a group at random and drop the rest, while the L² part keeps the group together.</p>
+      <p>The Bayesian 'prior' view is a practical guide: expect a few strong effects ⇒ lean L¹ (Laplace prior); expect many small diffuse effects ⇒ lean L² (Gaussian prior).</p>
+      <div class="case"><b>Typical setting:</b> ElasticNet with l1_ratio ≈ 0.5; sweep it on validation to slide between ridge-like and lasso-like behaviour.</div>
+    </div>
+  </section>
+
+  <!-- ================= 06 PENALTIES AS CONSTRAINTS ================= -->
+  <section class="leg" id="l6">
+    <div class="leg-head"><div class="leg-no">ST 06</div><div>
+      <div class="leg-kicker">The other reading · §7.2</div><h2>Norm Penalties as Constrained Optimization</h2></div></div>
+
+    <p class="lede">There is a second way to see every norm penalty: as a hard <b>constraint</b> that the weights must stay inside a region, Ω(w) &lt; k. The two views are linked by a Lagrangian, and each choice of α corresponds to some region size k — you just don't get to see k directly.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> there are two ways to stop kids wandering too far in a park. Way one: every time a kid drifts off, you call out and nudge them back, and the nudge gets stronger the further they go — that's a <b>penalty</b>. Way two: you draw a chalk circle and say "play anywhere you like, but stay inside this circle" — that's a <b>constraint</b>.</p>
+      <p>Here's the neat part: these two are secretly the same thing. A firmer nudge (bigger <b>α</b>) does exactly what a smaller circle does — both keep the kids closer to the middle. So whenever you add a penalty to shrink the model's numbers, you're really just drawing an invisible circle around them, and turning up α quietly shrinks that circle. The circle's size is the <b>k</b> in the formulas; you can't read it off directly, but you always know bigger α means a smaller circle.</p>
+    </div>
+
+    <div class="eqn"><span class="lbl">Generalized Lagrangian for "minimize J subject to Ω(θ) &lt; k"</span><br>
+      𝓛(<b>θ</b>, α) = <span class="t">J(θ)</span> + <b>α (Ω(θ) − k)</b> &nbsp;&nbsp;⟹&nbsp;&nbsp; θ* = argmin<sub>θ</sub> &nbsp; max<sub>α, α ≥ 0</sub> &nbsp; 𝓛(θ, α)</div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panel-t">Reading the Lagrangian</div>
+        <ul class="kl">
+          <li><b>Fix the optimal α* = </b>and the problem becomes exactly minimizing J(θ) + α*Ω(θ) — the penalized objective from station 01. Penalty and constraint are two faces of one problem.</li>
+          <li><b>α and k move oppositely = </b>a larger α pushes for a smaller region k; a smaller α allows a bigger region. Crank α up and the weights are confined nearer the origin.</li>
+          <li><b>k is implicit = </b>we rarely know the exact k a given α implies (it depends on the shape of J), but we know the direction: more α, tighter leash.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <div class="panel-t">α ↔ region size <small>Live</small></div>
+        <div class="slider"><div class="field"><label>Regularization α</label><input type="range" id="lagA" min="2" max="300" value="70"></div><output id="lagAo" class="mono">0.70</output></div>
+        <div class="contour-wrap" style="border:0"><svg id="lagSvg" viewBox="0 0 360 300" aria-label="Nested constraint regions shrinking as alpha increases"></svg></div>
+        <div class="reads">
+          <div class="read pri"><i>Implied region radius k</i><b id="lagK">—</b></div>
+          <div class="read bad"><i>‖w&#771;‖ lands at</i><b id="lagN">—</b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="note"><b>Same solution, different knob.</b> You can regularize by adding αΩ to the loss (penalty view) or by optimizing freely and clipping the weights back inside a ball of radius k (constraint view). For the right pairing of α and k, they reach the same w&#771;.</div>
+  
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">Tuning α</span></div>
+      <p>The constraint picture is how you should <b>reason about the α hyperparameter</b>. Turning α up shrinks the ball the weights may live in, so you tune it like a budget: too tight and the model underfits, too loose and it overfits.</p>
+      <p>In real projects you don't guess α — you <b>cross-validate</b> it, sweeping a log-scale grid (1e-4, 1e-3, … 1e1) and keeping the value with the best validation score.</p>
+      <div class="case"><b>Workflow:</b> log-spaced α grid → k-fold cross-validation → pick the validation-optimal α → refit on all data.</div>
+    </div>
+  </section>
+
+  <!-- ================= 07 EXPLICIT CONSTRAINTS ================= -->
+  <section class="leg" id="l7">
+    <div class="leg-head"><div class="leg-no">ST 07</div><div>
+      <div class="leg-kicker">Reprojection &amp; max-norm</div><h2>Explicit Constraints &amp; Reprojection</h2></div></div>
+
+    <p class="lede">If you take the constraint literally you get a different algorithm: after each gradient step, <b>project</b> the weights back onto the region. This <b>projected gradient descent</b> often behaves better than the equivalent penalty — and it is the basis of max-norm regularization.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> imagine a video game where the map has a boundary wall. You can walk around freely, but the moment you step past the edge, the game snaps you straight back to the boundary. That snap-back is called <b>reprojection</b>: take a normal step, and if the numbers grew too big, pull them right back to the edge of the allowed circle.</p>
+      <p>Why do this instead of just nudging (the penalty way)? Two reasons. First, snapping back never accidentally squashes everything to zero and gets the model stuck. Second, it stops the numbers from blowing up out of control. A popular version called <b>max-norm</b> does the snap-back for each part of the network separately, so no single piece is ever allowed to shout much louder than the others.</p>
+    </div>
+
+    <figure class="fig">
+      <svg viewBox="0 0 640 250" aria-label="A gradient step leaves the constraint ball and is projected back onto its boundary">
+        <circle cx="250" cy="140" r="96" fill="rgba(108,48,217,.08)" stroke="#6C30D9" stroke-width="1.5" stroke-dasharray="6 5"/>
+        <circle cx="250" cy="140" r="3.5" fill="#14171B"/><text x="250" y="128" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9" fill="#14171B">origin</text>
+        <text x="250" y="252" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9.5" fill="#6C30D9">‖w‖ ≤ k</text>
+        <!-- inside point -->
+        <circle cx="300" cy="100" r="4.5" fill="#0F7C87"/><text x="300" y="90" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="10" fill="#0F7C87">wₜ</text>
+        <!-- step out -->
+        <line x1="304" y1="97" x2="392" y2="42" stroke="#14171B" stroke-width="1.8" stroke-dasharray="5 4"/><path d="M392 42 l-9 1 l4 7 Z" fill="#14171B"/>
+        <text x="360" y="52" font-family="IBM Plex Mono,monospace" font-size="9" fill="#14171B">gradient step leaves the ball</text>
+        <circle cx="396" cy="39" r="4" fill="#14171B" opacity=".55"/>
+        <!-- project back -->
+        <line x1="393" y1="42" x2="330.5" y2="82" stroke="#C81C6E" stroke-width="1.8"/><path d="M330.5 82 l7 -1 l-2 -7 Z" fill="#C81C6E"/>
+        <circle cx="327" cy="84" r="4.8" fill="#C81C6E"/><text x="327" y="74" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="10" fill="#C81C6E">wₜ₊₁ projected</text>
+      </svg>
+      <figcaption><b>FIG 07</b> Projected gradient descent: step freely, then if the weights leave the region snap them back to the nearest point on its boundary. The weights ride the boundary instead of being dragged toward the origin.</figcaption>
+    </figure>
+
+    <div class="panel">
+      <div class="panel-t">Why explicit constraints can beat penalties</div>
+      <ul class="kl">
+        <li><b>No dead zones = </b>a penalty can create flat regions near the origin where non-convex optimization stalls with all-tiny weights. A reprojection never encourages weights toward the origin, so it avoids those dead spots.</li>
+        <li><b>Stability = </b>penalties can trigger a runaway feedback loop — large weights make large gradients that make larger weights — so weights blow up. Reprojection caps the norm and prevents divergence regardless of learning rate.</li>
+        <li><b>Max-norm per column = </b>Hinton and colleagues (in the dropout work) recommend constraining the norm of <i>each column</i> of a weight matrix separately, so no single hidden unit acquires enormous weights. You reproject column by column.</li>
+      </ul>
+    </div>
+
+    <figure class="fig">
+      <svg viewBox="0 0 640 180" aria-label="A weight matrix with a norm bar per column; one column exceeds the cap and is scaled back">
+        <text x="20" y="24" font-family="IBM Plex Mono,monospace" font-size="10" fill="#4B515A">MAX-NORM · per-column norm of a weight matrix, capped at c</text>
+        <line x1="20" y1="150" x2="620" y2="150" stroke="#14171B" stroke-width="1.4"/>
+        <line x1="20" y1="60" x2="620" y2="60" stroke="#C81C6E" stroke-width="1.2" stroke-dasharray="6 4"/>
+        <text x="624" y="63" font-family="IBM Plex Mono,monospace" font-size="9" fill="#C81C6E" text-anchor="end" transform="translate(-4,0)">cap c</text>
+        <g id="mnBars"></g>
+      </svg>
+      <figcaption><b>FIG 07-B</b> Each bar is one hidden unit's incoming weight norm. Units under the cap are left alone; any unit above it (rose) is rescaled down to the cap. Weights are prevented from getting large no matter how aggressive the learning rate.</figcaption>
+    </figure>
+
+    <div class="panel">
+      <div class="panel-t">Max-norm in code</div>
+<pre class="code no-abbr"><span class="c"># after optimizer.step(), reproject each column to norm &lt;= c</span>
+with torch.no_grad():
+    norms = weights.norm(dim=0, keepdim=True)        <span class="c"># per-column (per-unit) norm</span>
+    scale = (c / norms).clamp(max=1.0)               <span class="c"># only shrink, never grow</span>
+    weights *= scale                                 <span class="c"># reproject onto the ball</span></pre>
+    </div>
+  
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">Training stability</span></div>
+      <p>Explicit norm constraints earn their keep when training is <b>unstable</b>. <b>Max-norm</b> was famously paired with dropout so you could push the learning rate high without weights blowing up. Its close cousin, <b>gradient clipping</b>, is standard when training RNNs and Transformers to survive gradient spikes.</p>
+      <p>Weight-norm constraints also stabilise <b>GANs</b> and reinforcement-learning agents, where a single runaway weight can derail an entire training run.</p>
+      <div class="case"><b>Where it shows up:</b> max-norm ≈ 3–4 with aggressive dropout; gradient clipping (e.g. clip norm to 1.0) in nearly every large-model training loop.</div>
+    </div>
+  </section>
+
+  <!-- ================= 08 UNDER-CONSTRAINED ================= -->
+  <section class="leg" id="l8">
+    <div class="leg-head"><div class="leg-no">ST 08</div><div>
+      <div class="leg-kicker">Live lab · §7.3</div><h2>Regularization &amp; Under-Constrained Problems</h2></div></div>
+
+    <p class="lede">Some models simply have no unique answer without regularization. When there are flat directions in the data — no variance, or fewer examples than parameters — the matrix you need to invert is singular and the optimum runs off to infinity. A norm penalty rescues these <b>under-constrained</b> problems by making the answer well-posed.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> some puzzles just don't have one clear answer. If I only tell you "two numbers add up to 10," you can't know which two — is it 3 and 7? 5 and 5? There are endless answers, so the puzzle is <b>under-constrained</b>: not enough clues to pin it down.</p>
+      <p>Machines hit the same wall, and there's a sneaky version too. If a model can perfectly separate two groups of dots with a line, it starts thinking "if I make my numbers even bigger, I look even <b>more</b> sure" — so the numbers grow forever and never settle, like someone shouting louder and louder for no real reason. Regularization fixes both by adding a tiny nudge toward small numbers. Suddenly there's one sensible answer, and the shouting stops at a normal volume. Adding that little bit — the <b>α on the diagonal</b> — is exactly what turns an impossible puzzle into a solvable one.</p>
+    </div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panel-t">The singular matrix, fixed by αI</div>
+        <p style="font-size:14.5px">Linear regression, PCA and many linear models invert XᵀX. That matrix is <b>singular</b> when the data has no variance in some direction, or when m &lt; n (fewer examples than features).</p>
+        <div class="eqn" style="font-size:14px">(XᵀX)<sup>−1</sup> &nbsp; may not exist &nbsp;→&nbsp; <b>(XᵀX + αI)</b><sup>−1</sup> &nbsp; always exists (α &gt; 0)</div>
+        <p style="font-size:14.5px;color:var(--ink2)">Adding α to every diagonal entry lifts every eigenvalue by α, so the smallest can no longer be zero. The problem becomes invertible and stable.</p>
+      </div>
+      <div class="panel">
+        <div class="panel-t">Conditioning meter <small>Live</small></div>
+        <div class="slider"><div class="field"><label>Smallest eigenvalue of XᵀX &nbsp;(λ<sub>min</sub>)</label><input type="range" id="cndMin" min="0" max="200" value="4"></div><output id="cndMino" class="mono">0.04</output></div>
+        <div class="slider"><div class="field"><label>Regularization α</label><input type="range" id="cndA" min="0" max="200" value="20"></div><output id="cndAo" class="mono">0.20</output></div>
+        <div class="reads">
+          <div class="read"><i>λ<sub>min</sub> + α</i><b id="cndLam">—</b></div>
+          <div class="read good"><i>Invertible?</i><b id="cndInv" style="font-size:20px">—</b></div>
+          <div class="read warn"><i>Condition number κ</i><b id="cndK">—</b></div>
+        </div>
+        <p style="font-size:13px;color:var(--ink2);margin-top:8px">κ = (λ<sub>max</sub>+α)/(λ<sub>min</sub>+α), with λ<sub>max</sub> = 8. Lower κ means a more stable inverse. α trades a little bias for a lot of stability.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Separable data → runaway weights <small>Live: gradient descent, with and without decay</small></div>
+      <div class="two" style="grid-template-columns:.8fr 1.2fr">
+        <div class="cv"><canvas id="sepScatter" width="300" height="300"></canvas><div class="cv-cap">Two separable classes + current boundary (α applied)</div></div>
+        <div>
+          <p style="font-size:14.5px">Logistic regression on perfectly separable classes has <b>no finite optimum</b>: if weights w separate the data, then 2w gives higher likelihood, and so on forever — ‖w‖ → ∞. Any weight decay halts the runaway at a finite point where the likelihood gain finally equals the decay cost.</p>
+          <div class="slider"><div class="field"><label>Weight decay α</label><input type="range" id="sepA" min="0" max="120" value="0"></div><output id="sepAo" class="mono">0.00</output></div>
+          <div class="cv"><canvas id="sepPlot" width="480" height="170"></canvas><div class="cv-cap">‖w‖ over 1500 gradient steps · dashed = α:0 reference</div></div>
+          <div class="reads" style="margin-top:8px">
+            <div class="read bad"><i>‖w‖ after 1500 steps</i><b id="sepN">—</b></div>
+            <div class="read"><i>Trend</i><b id="sepT" style="font-size:18px">—</b></div>
+          </div>
+        </div>
+      </div>
+      <div class="note"><b>Set α = 0 and watch.</b> The norm keeps climbing — it never settles, because the optimum is at infinity. Nudge α above 0 and the curve bends over to a plateau: the problem is now well-posed.</div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">The pseudoinverse as a regularization limit</div>
+      <p style="font-size:15px">The Moore–Penrose pseudoinverse — the tool that gives a stable answer to under-determined linear systems — is exactly the vanishing-regularization limit of ridge regression:</p>
+      <div class="eqn">X<sup>+</sup> = lim<sub>α → 0<sup>+</sup></sub> <b>(XᵀX + αI)<sup>−1</sup> Xᵀ</b></div>
+      <p style="font-size:14.5px;color:var(--ink2)">Read it as: regularize, then let the leash go slack. What remains is the minimum-norm solution — the well-behaved answer regularization was quietly selecting all along.</p>
+    </div>
+  
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">The p ≫ n regime</span></div>
+      <p>The under-constrained case is everyday reality whenever there are <b>more features than samples</b> (p ≫ n): text with huge vocabularies, genomics with 20,000 genes and 200 patients, tiny fine-tuning sets. Without regularization there is no unique solution at all.</p>
+      <p>The separable-data trap is just as real: <b>logistic regression on perfectly separable classes</b> sends its weights to infinity. A dab of L² gives a finite, sensible answer — which is why libraries switch it on by default.</p>
+      <div class="case"><b>Good to know:</b> scikit-learn's LogisticRegression is L²-regularized out of the box (C is the inverse strength) precisely to stop weights diverging.</div>
+    </div>
+  </section>
+
+  <!-- ================= 09 REVISION + QUIZ ================= -->
+  <section class="leg" id="l9">
+    <div class="leg-head"><div class="leg-no">ST 09</div><div>
+      <div class="leg-kicker">Consolidate</div><h2>Revision &amp; Quiz</h2></div></div>
+
+    <p class="lede">Twelve checks across the three topics — parameter norm penalties, penalties as constrained optimization, and under-constrained problems. Pick an answer to see the reasoning.</p>
+
+    <div class="panel">
+      <div class="panel-t">Self-test <small><span id="score">0 / 12</span> correct</small></div>
+      <div id="quiz"></div>
+      <div class="ctl" style="margin-top:14px"><button class="chip mag" id="qReset">Reset quiz</button></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Likely long-answer questions</div>
+      <ul class="kl">
+        <li>Define regularization. Write the regularized objective and explain the role of α. Why do we usually penalize the weights but not the biases?</li>
+        <li>Derive the weight-decay update for L² regularization and explain why it is called "decay". Show that a single step multiplies the weights by (1 − εα).</li>
+        <li>Using a quadratic approximation, show w&#771; = (H + αI)⁻¹ H w*. Interpret the per-eigen-direction rescaling λ/(λ+α): which directions survive and which decay, and why?</li>
+        <li>Derive the L¹ soft-threshold solution under a diagonal-Hessian assumption. Explain, using the two penalty gradients, why L¹ produces sparsity but L² does not.</li>
+        <li>Give the Bayesian (MAP) interpretation of L² and L¹. State the corresponding priors and relate the Laplace cusp to sparsity.</li>
+        <li>Explain how a norm penalty corresponds to a constrained optimization via the generalized Lagrangian. How are α and the constraint region size k related?</li>
+        <li>Describe projected gradient descent with reprojection. Give three reasons explicit constraints can be preferable to penalties, including max-norm regularization.</li>
+        <li>What makes a problem under-constrained? Explain how XᵀX + αI restores invertibility, why separable logistic regression has no finite optimum, and how the pseudoinverse relates to regularization.</li>
+      </ul>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Glossary <small>Click any dotted term anywhere on the page</small></div>
+      <input class="search" id="glossQ" type="search" placeholder="Filter terms — try 'lasso' or 'hessian'">
+      <div class="gloss no-abbr" id="gloss"></div>
+    </div>
+  </section>
+
+  <!-- ================= KEY TAKEAWAYS ================= -->
+  <section class="leg" id="l10">
+    <div class="leg-head"><div class="leg-no">SUM</div><div>
+      <div class="leg-kicker">Summary · what you carry off the landscape</div><h2>Key Takeaways</h2></div></div>
+
+    <div class="headline">
+      <h3>If you remember only one thing</h3>
+      <p>A norm penalty is a <b>second force</b> on the weights. The data term pulls toward the fit w*; the penalty pulls toward 0; the solution w&#771; is the balance. Everything else — weight decay, ridge, LASSO, constraint balls, reprojection, the pseudoinverse — is just <b>which shape of pull</b> you choose and <b>how hard</b> you pull.</p>
+    </div>
+
+    <div class="tk">
+      <div class="tk-item"><i>01</i><div><h4>Penalty, not punishment</h4>
+        <p>Regularization reduces generalization error, not training error. J&#771; = J + αΩ. α is a validation-tuned dial, and we penalize weights, not biases.</p></div></div>
+
+      <div class="tk-item"><i>02</i><div><h4>L² is a per-step shrink</h4>
+        <p>Weight decay multiplies w by (1 − εα) before each gradient step. The effective strength is entangled with the learning rate.</p></div></div>
+
+      <div class="tk-item"><i>03</i><div><h4>Curvature decides survival</h4>
+        <p>w&#771; = (H + αI)⁻¹Hw*. Each direction is scaled by λ/(λ+α): steep directions (large λ) are kept, flat ones (small λ) are decayed away.</p></div></div>
+
+      <div class="tk-item"><i>04</i><div><h4>L¹ is soft thresholding</h4>
+        <p>w&#771;ᵢ = sign(w*ᵢ)·max(|w*ᵢ| − α/Hᵢᵢ, 0). A constant push α·sign(w) pins small weights at exactly 0 — sparsity, aka LASSO.</p></div></div>
+
+      <div class="tk-item"><i>05</i><div><h4>Priors behind the penalties</h4>
+        <p>L² = MAP with a Gaussian prior; L¹ = MAP with a Laplace prior. The Laplace cusp at 0 is where sparsity comes from.</p></div></div>
+
+      <div class="tk-item"><i>06</i><div><h4>Penalty ⇄ constraint</h4>
+        <p>Via the Lagrangian J + α(Ω−k), a penalty of strength α equals a constraint of some region size k. More α means a smaller region, weights nearer the origin.</p></div></div>
+
+      <div class="tk-item"><i>07</i><div><h4>Explicit constraints are steadier</h4>
+        <p>Reproject after each step instead of penalizing. Avoids dead zones near the origin, prevents runaway divergence, and enables per-column max-norm.</p></div></div>
+
+      <div class="tk-item"><i>08</i><div><h4>Regularization makes problems well-posed</h4>
+        <p>XᵀX + αI is always invertible; separable logistic regression gets a finite solution; the pseudoinverse is the α → 0 limit of ridge.</p></div></div>
+    </div>
+
+    <div class="foot no-abbr">
+      <span>CHAPTER 7 · REGULARIZATION FOR DEEP LEARNING</span>
+      <span>8 STATIONS · 6 LIVE LABS · ALL GEOMETRY COMPUTED IN YOUR BROWSER</span>
+      <span>WALK THE TRAVERSE AGAIN BEFORE THE EXAM</span>
+    </div>
+  </section>
+
+  </main>
+</div>
+<script>
+(function(){
+"use strict";
+const $=(s,r)=>(r||document).querySelector(s), $$=(s,r)=>[...(r||document).querySelectorAll(s)];
+const fmt=(n,d)=>Number(n).toFixed(d===undefined?1:d);
+
+/* ---------- hero waypoints ---------- */
+const wpPts=[[120,300],[250,268],[388,236],[520,210],[650,190],[772,176],[648,138],[620,96]];
+const wpNames=["Definition","L² decay","Hessian view","L¹ sparsity","L¹ vs L²","Constraints","Reprojection","Under-constrained"];
+const NS="http://www.w3.org/2000/svg";
+const wpsG=$("#wps");
+wpPts.forEach((p,i)=>{
+  const g=document.createElementNS(NS,"g");
+  g.setAttribute("class","wp"); g.setAttribute("tabindex","0"); g.setAttribute("role","link");
+  g.setAttribute("aria-label","Station "+(i+1)+": "+wpNames[i]);
+  g.innerHTML='<circle class="hit" cx="'+p[0]+'" cy="'+p[1]+'" r="12" fill="#F7F8F3" fill-opacity=".01"/>'+
+    '<circle cx="'+p[0]+'" cy="'+p[1]+'" r="6.5" fill="#F7F8F3" stroke="#14171B" stroke-width="1.6"/>'+
+    '<circle cx="'+p[0]+'" cy="'+p[1]+'" r="2.4" fill="#6C30D9"/>'+
+    '<text x="'+p[0]+'" y="'+(p[1]-13)+'" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9.5" fill="#14171B">'+String(i+1).padStart(2,"0")+'</text>';
+  const go=()=>{const el=document.getElementById("l"+(i+1)); if(el) el.scrollIntoView({block:"start"});};
+  g.addEventListener("click",go);
+  g.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();go();}});
+  wpsG.appendChild(g);
+});
+
+/* ---------- rail + progress ---------- */
+const legs=$$(".leg"), links=$$("#rail a");
+function onScroll(){
+  const y=window.scrollY+140; let idx=0;
+  legs.forEach((l,i)=>{ if(l.offsetTop<=y) idx=i; });
+  links.forEach((a,i)=>a.classList.toggle("on",i===idx));
+  const d=document.documentElement;
+  const p=Math.min(100,Math.max(0,(window.scrollY/(d.scrollHeight-d.clientHeight))*100));
+  $("#progFill").style.width=p+"%"; $("#progTxt").textContent=Math.round(p)+"%";
+}
+window.addEventListener("scroll",onScroll,{passive:true}); onScroll();
+
+/* hamburger drawer */
+const railEl=$("#rail"),hamEl=$("#ham"),railBg=$("#railBg");
+function railSet(open){
+  railEl.classList.toggle("open",open);
+  hamEl.classList.toggle("open",open);
+  railBg.classList.toggle("on",open);
+  hamEl.setAttribute("aria-expanded",open?"true":"false");
+  document.body.style.overflow=open?"hidden":"";
+}
+hamEl.addEventListener("click",()=>railSet(!railEl.classList.contains("open")));
+$("#railX").addEventListener("click",()=>railSet(false));
+railBg.addEventListener("click",()=>railSet(false));
+document.addEventListener("keydown",e=>{if(e.key==="Escape")railSet(false);});
+links.forEach(aEl=>aEl.addEventListener("click",()=>railSet(false)));
+
+/* ================= shared 2x2 math ================= */
+function eigmax2(H){const a=H[0],b=H[1],d=H[3];const tr=a+d,det=a*d-b*b;const disc=Math.sqrt(Math.max(0,tr*tr/4-det));return tr/2+disc;}
+function Hfrom(l1,l2,phiDeg){const p=phiDeg*Math.PI/180,c=Math.cos(p),s=Math.sin(p);
+  const a=l1*c*c+l2*s*s,b=(l1-l2)*c*s,d=l1*s*s+l2*c*c;return [a,b,b,d];}
+function solveL2(H,ws,al){const A=H[0]+al,B=H[1],C=H[2],D=H[3]+al;const det=A*D-B*C;
+  const hx=H[0]*ws[0]+H[1]*ws[1],hy=H[2]*ws[0]+H[3]*ws[1];
+  return [(D*hx-B*hy)/det,(-C*hx+A*hy)/det];}
+function solveL1(H,ws,al,it){const L=eigmax2(H)||1,step=1/L;let w=[ws[0],ws[1]];
+  for(let k=0;k<(it||500);k++){const dx=w[0]-ws[0],dy=w[1]-ws[1];
+    const gx=H[0]*dx+H[1]*dy,gy=H[2]*dx+H[3]*dy;
+    const ux=w[0]-step*gx,uy=w[1]-step*gy,t=al*step;
+    w[0]=Math.sign(ux)*Math.max(0,Math.abs(ux)-t);
+    w[1]=Math.sign(uy)*Math.max(0,Math.abs(uy)-t);}
+  return w;}
+function quad(H,dx,dy){return H[0]*dx*dx+2*H[1]*dx*dy+H[3]*dy*dy;}
+
+/* ================= ST02 weight-decay meter ================= */
+(function(){
+  const cv=$("#wdCanvas"),cx=cv.getContext("2d"),cw=cv.width,ch=cv.height;
+  function draw(f){
+    cx.clearRect(0,0,cw,ch); cx.fillStyle="#fff"; cx.fillRect(0,0,cw,ch);
+    const m=24, x0=m, y0=ch-m, x1=cw-m, y1=m, N=60;
+    cx.strokeStyle="#c9ccc4"; cx.lineWidth=1;
+    cx.beginPath();cx.moveTo(x0,y1);cx.lineTo(x0,y0);cx.lineTo(x1,y0);cx.stroke();
+    cx.strokeStyle="#4B515A"; cx.setLineDash([3,3]); cx.beginPath();cx.moveTo(x0,y1);cx.lineTo(x1,y1);cx.stroke(); cx.setLineDash([]);
+    cx.fillStyle="#4B515A"; cx.font="10px 'IBM Plex Mono',monospace";
+    cx.fillText("w",6,y1+8); cx.fillText("1.0",4,y1+4); cx.fillText("0",x0-8,y0+4); cx.fillText("steps",x1-34,y0+16);
+    cx.strokeStyle="#6C30D9"; cx.lineWidth=2; cx.beginPath();
+    let v=1;
+    for(let t=0;t<=N;t++){
+      const px=x0+(x1-x0)*t/N, py=y0-(y0-y1)*Math.max(-0.1,Math.min(1,v));
+      if(t===0)cx.moveTo(px,py); else cx.lineTo(px,py);
+      v=v*f;
+    }
+    cx.stroke();
+  }
+  function R(){
+    const eps=(+$("#wdEps").value)*0.001, al=(+$("#wdA").value)*0.01, f=1-eps*al;
+    $("#wdEpso").textContent=fmt(eps,3); $("#wdAo").textContent=fmt(al,2);
+    $("#wdF").textContent=fmt(f,4); $("#wdP").innerHTML=fmt((1-f)*100,2)+" <s>%</s>";
+    draw(f);
+    let note;
+    if(f<0)note="εα > 1: the shrink factor is negative — the update overshoots and diverges. Lower ε or α.";
+    else if(f>0.999)note="Very light decay — weights barely shrink each step; effective regularization is weak.";
+    else note="Each step multiplies the weight by "+fmt(f,3)+" before the gradient update — a steady geometric decay.";
+    $("#wdNote").textContent=note;
+  }
+  ["wdEps","wdA"].forEach(id=>$("#"+id).addEventListener("input",R)); R();
+})();
+
+/* ================= ST03 contour bench ================= */
+let conMode="L2";
+(function(){
+  const el=$("#conCtl");
+  const b2=document.createElement("button");b2.className="chip mag on";b2.textContent="L² (ridge)";
+  const b1=document.createElement("button");b1.className="chip rose";b1.textContent="L¹ (LASSO)";
+  b2.addEventListener("click",()=>{conMode="L2";b2.classList.add("on");b1.classList.remove("on");conR();});
+  b1.addEventListener("click",()=>{conMode="L1";b1.classList.add("on");b2.classList.remove("on");conR();});
+  el.appendChild(b2);el.appendChild(b1);
+})();
+const ws=[1.9,1.1], nsFix=Math.hypot(ws[0],ws[1]);
+function conR(){
+  const al=(+$("#conA").value)*0.01, l1=(+$("#conL1").value)*0.01, l2=(+$("#conL2").value)*0.01;
+  $("#conAo").textContent=fmt(al,2); $("#conL1o").textContent=fmt(l1,2); $("#conL2o").textContent=fmt(l2,2);
+  $("#conRotWrap").style.display=(conMode==="L1")?"none":"";
+  const phi=(conMode==="L2")?(+$("#conRot").value):0; $("#conRoto").textContent=phi+"°";
+  const H=Hfrom(l1,l2,phi);
+  const wt=(conMode==="L2")?solveL2(H,ws,al):solveL1(H,ws,al,600);
+  const px0=150,py0=250,s=76;
+  const X=w=>px0+w*s, Y=w=>py0-w*s;
+  let g="";
+  g+='<rect x="0" y="0" width="420" height="340" fill="#fff"/>';
+  g+='<line x1="'+X(-0.7)+'" y1="'+Y(0)+'" x2="'+X(3.1)+'" y2="'+Y(0)+'" stroke="#d5d8d0" stroke-width="1"/>';
+  g+='<line x1="'+X(0)+'" y1="'+Y(-0.7)+'" x2="'+X(0)+'" y2="'+Y(3.1)+'" stroke="#d5d8d0" stroke-width="1"/>';
+  g+='<text x="'+X(3.05)+'" y="'+(Y(0)-6)+'" font-family="IBM Plex Mono,monospace" font-size="9" fill="#9aa">w₁</text>';
+  g+='<text x="'+(X(0)+6)+'" y="'+Y(3.0)+'" font-family="IBM Plex Mono,monospace" font-size="9" fill="#9aa">w₂</text>';
+  // loss contours
+  const lmin=Math.min(l1,l2), cBig=0.5*lmin*2.7*2.7;
+  const rot=-phi;
+  [0.05,0.13,0.26,0.45,0.7,1.0].forEach((fr,i)=>{
+    const c=cBig*fr, a=Math.sqrt(2*c/l1)*s, b=Math.sqrt(2*c/l2)*s;
+    g+='<ellipse cx="'+X(ws[0])+'" cy="'+Y(ws[1])+'" rx="'+fmt(a,1)+'" ry="'+fmt(b,1)+'" transform="rotate('+rot+' '+X(ws[0])+' '+Y(ws[1])+')" fill="none" stroke="#0F7C87" stroke-width="1" opacity="'+(0.22+i*0.11)+'"/>';
+  });
+  // tangent contour through wt
+  const ct=0.5*quad(H,wt[0]-ws[0],wt[1]-ws[1]);
+  if(ct>1e-5){const a=Math.sqrt(2*ct/l1)*s,b=Math.sqrt(2*ct/l2)*s;
+    g+='<ellipse cx="'+X(ws[0])+'" cy="'+Y(ws[1])+'" rx="'+fmt(a,1)+'" ry="'+fmt(b,1)+'" transform="rotate('+rot+' '+X(ws[0])+' '+Y(ws[1])+')" fill="none" stroke="#14171B" stroke-width="1.3" stroke-dasharray="4 3" opacity=".65"/>';}
+  // constraint region
+  const col=(conMode==="L2")?"#6C30D9":"#C81C6E";
+  if(conMode==="L2"){const r=Math.hypot(wt[0],wt[1])*s;
+    g+='<circle cx="'+X(0)+'" cy="'+Y(0)+'" r="'+fmt(r,1)+'" fill="'+col+'" fill-opacity=".08" stroke="'+col+'" stroke-width="1.5"/>';
+  }else{const r=Math.abs(wt[0])+Math.abs(wt[1]);
+    const pts=[[X(r),Y(0)],[X(0),Y(r)],[X(-r),Y(0)],[X(0),Y(-r)]].map(p=>fmt(p[0],1)+","+fmt(p[1],1)).join(" ");
+    g+='<polygon points="'+pts+'" fill="'+col+'" fill-opacity=".08" stroke="'+col+'" stroke-width="1.5"/>';
+  }
+  // markers
+  g+='<circle cx="'+X(0)+'" cy="'+Y(0)+'" r="3" fill="#14171B"/>';
+  g+='<circle cx="'+X(ws[0])+'" cy="'+Y(ws[1])+'" r="4.5" fill="#0F7C87"/><text x="'+(X(ws[0])+8)+'" y="'+(Y(ws[1])-6)+'" font-family="IBM Plex Mono,monospace" font-size="11" fill="#0F7C87">w*</text>';
+  g+='<circle cx="'+X(wt[0])+'" cy="'+Y(wt[1])+'" r="5.5" fill="'+col+'"/><text x="'+(X(wt[0])+8)+'" y="'+(Y(wt[1])+16)+'" font-family="IBM Plex Mono,monospace" font-size="11" fill="'+col+'">w&#771;</text>';
+  $("#conSvg").innerHTML=g;
+  // reads
+  const nt=Math.hypot(wt[0],wt[1]);
+  $("#conNs").textContent=fmt(nsFix,2); $("#conNt").textContent=fmt(nt,2);
+  $("#conShr").innerHTML=fmt((1-nt/nsFix)*100,0)+" <s>%</s>";
+  const zeros=(conMode==="L1")?([wt[0],wt[1]].filter(v=>Math.abs(v)<1e-3).length):0;
+  $("#conZero").textContent=(conMode==="L1")?String(zeros):"—";
+  let msg;
+  if(conMode==="L2") msg="L² shrinks every weight proportionally toward 0; w̃ stays off the axes — a smooth circle has no corners to snap onto.";
+  else if(zeros>0) msg="A loss contour first touches the diamond at a corner on an axis, so "+zeros+" weight"+(zeros>1?"s are":" is")+" driven to exactly 0 — sparsity.";
+  else msg="Raise α (or lower a curvature) until the growing region's corner catches the loss — the tangent point jumps onto an axis and a weight zeroes out.";
+  $("#conMsg").textContent=msg;
+}
+["conA","conL1","conL2","conRot"].forEach(id=>$("#"+id).addEventListener("input",conR)); conR();
+
+/* eigen-rescale meter */
+(function(){
+  const eigVals=[0.05,0.15,0.4,1.0,2.5,6.0];
+  function R(){
+    const al=(+$("#eigA").value)*0.01; $("#eigAo").textContent=fmt(al,2);
+    $("#eigBars").innerHTML=eigVals.map(l=>{const f=l/(l+al),dec=f<0.5;
+      return '<div class="bar-row"><span>λ = '+fmt(l,2)+'</span><div class="tr"><div class="fl'+(dec?" rose":"")+'" style="width:'+fmt(f*100,0)+'%"></div></div><b>'+fmt(f,2)+'</b></div>';}).join("");
+  }
+  $("#eigA").addEventListener("input",R); R();
+})();
+
+/* ================= ST04 soft-threshold bench ================= */
+(function(){
+  const cv=$("#stCanvas"),cx=cv.getContext("2d"),cw=cv.width,ch=cv.height;
+  const Ws=2.6, sc=64, cx0=cw/2, cy0=ch/2;
+  const X=w=>cx0+w*sc, Y=w=>cy0-w*sc;
+  function line(fn,col,w,dash){
+    cx.strokeStyle=col;cx.lineWidth=w;cx.setLineDash(dash||[]);cx.beginPath();
+    for(let i=0;i<=200;i++){const wv=-Ws+2*Ws*i/200, y=fn(wv);
+      const px=X(wv),py=Y(Math.max(-Ws,Math.min(Ws,y)));
+      if(i===0)cx.moveTo(px,py);else cx.lineTo(px,py);}
+    cx.stroke();cx.setLineDash([]);
+  }
+  function R(){
+    const al=(+$("#stA").value)*0.01, H=(+$("#stH").value)*0.01, t=al/H, sl=H/(H+al);
+    $("#stAo").textContent=fmt(al,2); $("#stHo").textContent=fmt(H,2);
+    $("#stDz").textContent="± "+fmt(t,2); $("#stSl").textContent=fmt(sl,2);
+    cx.clearRect(0,0,cw,ch);cx.fillStyle="#fff";cx.fillRect(0,0,cw,ch);
+    // axes
+    cx.strokeStyle="#d5d8d0";cx.lineWidth=1;cx.beginPath();
+    cx.moveTo(X(-Ws),Y(0));cx.lineTo(X(Ws),Y(0));cx.moveTo(X(0),Y(-Ws));cx.lineTo(X(0),Y(Ws));cx.stroke();
+    cx.fillStyle="#9aa";cx.font="10px 'IBM Plex Mono',monospace";
+    cx.fillText("w*",X(Ws)-18,Y(0)-6); cx.fillText("w̃",X(0)+6,Y(Ws)+12);
+    // dead zone band for L1
+    cx.fillStyle="rgba(200,28,110,.07)";cx.fillRect(X(-t),0,(2*t)*sc,ch);
+    line(w=>w,"#b7bab2",1.5,[5,4]);            // identity
+    line(w=>sl*w,"#6C30D9",2.2);               // L2
+    line(w=>Math.sign(w)*Math.max(0,Math.abs(w)-t),"#C81C6E",2.4); // L1
+  }
+  ["stA","stH"].forEach(id=>$("#"+id).addEventListener("input",R)); R();
+})();
+
+/* ================= ST05 priors ================= */
+(function(){
+  const X0=60,X1=580,Y0=200,Y1=30;
+  const X=x=>X0+(x+4)/8*(X1-X0), Y=y=>Y0-(y)*(Y0-Y1);
+  function path(fn){let d="";for(let i=0;i<=160;i++){const x=-4+8*i/160,y=fn(x);d+=(i?"L":"M")+fmt(X(x),1)+" "+fmt(Y(y),1)+" ";}return d;}
+  const gauss=path(x=>Math.exp(-x*x/2)), lap=path(x=>Math.exp(-Math.abs(x)*1.6));
+  let g="";
+  g+='<line x1="'+X0+'" y1="'+Y0+'" x2="'+X1+'" y2="'+Y0+'" stroke="#14171B" stroke-width="1.2"/>';
+  g+='<line x1="'+X(0)+'" y1="'+Y0+'" x2="'+X(0)+'" y2="'+(Y1-6)+'" stroke="#d5d8d0" stroke-width="1" stroke-dasharray="3 3"/>';
+  g+='<text x="'+X(0)+'" y="'+(Y0+16)+'" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9" fill="#4B515A">weight = 0</text>';
+  g+='<path d="'+gauss+'" fill="none" stroke="#6C30D9" stroke-width="2.4"/>';
+  g+='<path d="'+lap+'" fill="none" stroke="#C81C6E" stroke-width="2.4"/>';
+  g+='<text x="'+X(1.7)+'" y="'+Y(0.62)+'" font-family="IBM Plex Mono,monospace" font-size="11" fill="#6C30D9">Gaussian → L²</text>';
+  g+='<text x="'+X(1.2)+'" y="'+Y(0.22)+'" font-family="IBM Plex Mono,monospace" font-size="11" fill="#C81C6E">Laplace → L¹</text>';
+  g+='<text x="'+X(-3.9)+'" y="'+(Y1+4)+'" font-family="IBM Plex Mono,monospace" font-size="9" fill="#4B515A">p(w)  (density, peaks aligned)</text>';
+  $("#priSvg").innerHTML=g;
+})();
+
+/* ================= ST06 Lagrangian regions ================= */
+(function(){
+  const H=Hfrom(3.0,0.8,0), w0=[1.9,1.1];
+  const ox=150,oy=175,s=42;
+  const X=w=>ox+w*s, Y=w=>oy-w*s;
+  function kOf(al){const wt=solveL2(H,w0,al);return Math.hypot(wt[0],wt[1]);}
+  function R(){
+    const al=(+$("#lagA").value)*0.01; $("#lagAo").textContent=fmt(al,2);
+    const k=kOf(al), wt=solveL2(H,w0,al);
+    let g='<rect x="0" y="0" width="360" height="300" fill="#F7F8F3"/>';
+    g+='<line x1="'+X(-1)+'" y1="'+Y(0)+'" x2="'+X(3)+'" y2="'+Y(0)+'" stroke="#d5d8d0"/>';
+    g+='<line x1="'+X(0)+'" y1="'+Y(-1)+'" x2="'+X(0)+'" y2="'+Y(3)+'" stroke="#d5d8d0"/>';
+    [[0.2,".28"],[0.7,".22"],[2.0,".16"]].forEach(a=>{
+      const rr=kOf(a[0])*s;
+      g+='<circle cx="'+X(0)+'" cy="'+Y(0)+'" r="'+fmt(rr,1)+'" fill="none" stroke="#6C30D9" stroke-opacity="'+a[1]+'" stroke-width="1.2" stroke-dasharray="4 3"/>';
+    });
+    g+='<circle cx="'+X(0)+'" cy="'+Y(0)+'" r="'+fmt(k*s,1)+'" fill="#6C30D9" fill-opacity=".1" stroke="#6C30D9" stroke-width="1.8"/>';
+    g+='<circle cx="'+X(0)+'" cy="'+Y(0)+'" r="3" fill="#14171B"/>';
+    g+='<circle cx="'+X(w0[0])+'" cy="'+Y(w0[1])+'" r="4" fill="#0F7C87"/><text x="'+(X(w0[0])+7)+'" y="'+(Y(w0[1])-5)+'" font-family="IBM Plex Mono,monospace" font-size="10" fill="#0F7C87">w*</text>';
+    g+='<circle cx="'+X(wt[0])+'" cy="'+Y(wt[1])+'" r="5" fill="#C81C6E"/><text x="'+(X(wt[0])+7)+'" y="'+(Y(wt[1])+14)+'" font-family="IBM Plex Mono,monospace" font-size="10" fill="#C81C6E">w&#771;</text>';
+    $("#lagSvg").innerHTML=g;
+    $("#lagK").textContent=fmt(k,2); $("#lagN").textContent=fmt(Math.hypot(wt[0],wt[1]),2);
+  }
+  $("#lagA").addEventListener("input",R); R();
+})();
+
+/* ================= ST07 max-norm bars ================= */
+(function(){
+  const bars=[52,70,96,44,88,112,63,124,58,101]; const cap=90, baseY=150, capY=60, x0=54, bw=44, gap=13;
+  let g="";
+  bars.forEach((h,i)=>{
+    const x=x0+i*(bw+gap), over=h>cap, top=baseY-Math.min(h,cap);
+    g+='<rect x="'+x+'" y="'+top+'" width="'+bw+'" height="'+(baseY-top)+'" fill="'+(over?"#C81C6E":"#6C30D9")+'" opacity="'+(over?".9":".8")+'"/>';
+    if(over){
+      g+='<rect x="'+x+'" y="'+(baseY-h)+'" width="'+bw+'" height="'+(h-cap)+'" fill="#C81C6E" opacity=".2"/>';
+      g+='<line x1="'+(x+bw/2)+'" y1="'+(baseY-h+6)+'" x2="'+(x+bw/2)+'" y2="'+(capY+7)+'" stroke="#C81C6E" stroke-width="1.4"/><path d="M'+(x+bw/2-4)+' '+(capY+9)+' L'+(x+bw/2+4)+' '+(capY+9)+' L'+(x+bw/2)+' '+(capY+3)+' Z" fill="#C81C6E"/>';
+    }
+    g+='<text x="'+(x+bw/2)+'" y="164" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="8.5" fill="#4B515A">u'+(i+1)+'</text>';
+  });
+  $("#mnBars").innerHTML=g;
+})();
+
+/* ================= ST08 conditioning ================= */
+(function(){
+  function R(){
+    const lm=(+$("#cndMin").value)*0.01, al=(+$("#cndA").value)*0.01, lam=lm+al, lmax=8;
+    $("#cndMino").textContent=fmt(lm,2); $("#cndAo").textContent=fmt(al,2);
+    $("#cndLam").textContent=fmt(lam,2);
+    const inv=lam>1e-9, invEl=$("#cndInv");
+    invEl.textContent=inv?"YES":"NO";
+    invEl.parentElement.classList.toggle("good",inv); invEl.parentElement.classList.toggle("bad",!inv);
+    const k=inv?(lmax+al)/lam:Infinity;
+    $("#cndK").textContent=isFinite(k)?(k>999?"999+":fmt(k,1)):"∞";
+  }
+  ["cndMin","cndA"].forEach(id=>$("#"+id).addEventListener("input",R)); R();
+})();
+
+/* ================= ST08 separable logistic ================= */
+(function(){
+  const P=[[1.2,1.0,1],[1.7,1.6,1],[2.1,1.1,1],[1.4,2.0,1],[2.3,1.8,1],
+           [-1.3,-1.0,0],[-1.7,-1.5,0],[-2.0,-1.1,0],[-1.2,-1.9,0],[-2.2,-1.6,0]];
+  function run(al){let w1=0,w2=0,b=0;const lr=0.5,N=1500,norms=new Float32Array(N);
+    for(let s=0;s<N;s++){let g1=0,g2=0,gb=0;
+      for(let j=0;j<P.length;j++){const x1=P[j][0],x2=P[j][1],y=P[j][2];
+        const z=w1*x1+w2*x2+b,p=1/(1+Math.exp(-z)),e=p-y; g1+=e*x1;g2+=e*x2;gb+=e;}
+      g1/=P.length;g2/=P.length;gb/=P.length;
+      w1-=lr*(g1+al*w1); w2-=lr*(g2+al*w2); b-=lr*gb;
+      norms[s]=Math.hypot(w1,w2);}
+    return {norms,w:[w1,w2,b]};}
+  const plot=$("#sepPlot"),pc=plot.getContext("2d"),pw=plot.width,ph=plot.height;
+  const sc=$("#sepScatter"),scx=sc.getContext("2d"),sw=sc.width,sh=sc.height;
+  function drawPlot(cur,ref){
+    pc.clearRect(0,0,pw,ph);pc.fillStyle="#fff";pc.fillRect(0,0,pw,ph);
+    const m=26,x0=m,y0=ph-18,x1=pw-8,y1=10,N=cur.norms.length;
+    let ymax=1;for(let i=0;i<N;i++){ymax=Math.max(ymax,cur.norms[i],ref.norms[i]);} ymax*=1.08;
+    pc.strokeStyle="#c9ccc4";pc.beginPath();pc.moveTo(x0,y1);pc.lineTo(x0,y0);pc.lineTo(x1,y0);pc.stroke();
+    pc.fillStyle="#4B515A";pc.font="9px 'IBM Plex Mono',monospace";
+    pc.fillText("‖w‖",4,y1+8); pc.fillText(fmt(ymax,0),4,y1+18); pc.fillText("0",x0-8,y0+3);
+    function curve(arr,col,dash,wd){pc.strokeStyle=col;pc.lineWidth=wd;pc.setLineDash(dash||[]);pc.beginPath();
+      for(let i=0;i<N;i++){const px=x0+(x1-x0)*i/(N-1),py=y0-(y0-y1)*arr[i]/ymax; if(i===0)pc.moveTo(px,py);else pc.lineTo(px,py);}
+      pc.stroke();pc.setLineDash([]);}
+    curve(ref.norms,"#b7bab2",[5,4],1.5);
+    curve(cur.norms,"#6C30D9",[],2.2);
+  }
+  function drawScatter(w){
+    scx.clearRect(0,0,sw,sh);scx.fillStyle="#fff";scx.fillRect(0,0,sw,sh);
+    const R=3, X=v=>10+(v+R)/(2*R)*(sw-20), Y=v=>(sh-10)-(v+R)/(2*R)*(sh-20);
+    scx.strokeStyle="#d5d8d0";scx.beginPath();scx.moveTo(X(-R),Y(0));scx.lineTo(X(R),Y(0));scx.moveTo(X(0),Y(-R));scx.lineTo(X(0),Y(R));scx.stroke();
+    // boundary w1 x1 + w2 x2 + b = 0
+    const w1=w[0],w2=w[1],b=w[2];
+    if(Math.abs(w2)>1e-6){const xa=-R,xb=R,ya=-(w1*xa+b)/w2,yb=-(w1*xb+b)/w2;
+      scx.strokeStyle="#C81C6E";scx.lineWidth=2;scx.beginPath();scx.moveTo(X(xa),Y(ya));scx.lineTo(X(xb),Y(yb));scx.stroke();}
+    P.forEach(p=>{scx.beginPath();scx.arc(X(p[0]),Y(p[1]),5,0,7);
+      if(p[2]===1){scx.fillStyle="#0F7C87";scx.fill();}
+      else{scx.fillStyle="#fff";scx.fill();scx.lineWidth=1.6;scx.strokeStyle="#14171B";scx.stroke();}});
+  }
+  function R(){
+    const al=(+$("#sepA").value)*0.01; $("#sepAo").textContent=fmt(al,2);
+    const cur=run(al), ref=run(0);
+    drawPlot(cur,ref); drawScatter(cur.w);
+    const n=cur.norms, last=n[n.length-1], mid=n[1199];
+    $("#sepN").textContent=fmt(last,2);
+    const rising=(last-mid)/Math.max(mid,1e-6)>0.02;
+    $("#sepT").textContent=rising?"rising ↑":"settled ✓";
+    $("#sepT").parentElement.classList.toggle("bad",rising); $("#sepT").parentElement.classList.toggle("good",!rising);
+  }
+  $("#sepA").addEventListener("input",R); R();
+})();
+
+/* ================= ST09 quiz ================= */
+const qs=[
+ {q:"Regularization is best defined as any modification to a learning algorithm intended to reduce…",o:["training error","generalization error, even at the cost of training error","the number of parameters","the learning rate"],a:1,e:"By definition it targets generalization error, not training error — it will often raise training error slightly to shrink the train–test gap."},
+ {q:"In J̃ = J + αΩ, we usually leave which parameters unpenalized?",o:["The weights w","The biases b","The largest weights","The first layer"],a:1,e:"Each bias controls a single variable and is fit accurately from little data; penalizing biases mostly adds underfitting for no gain."},
+ {q:"A single L² (weight-decay) gradient step multiplies the weights by…",o:["(1 + εα)","(1 − εα)","α/(α+ε)","ε/α"],a:1,e:"w ← (1 − εα)w − ε∇J. The weights are shrunk by a constant factor just below 1 before the usual update — hence 'decay'."},
+ {q:"Under the quadratic approximation, L² rescales each Hessian eigen-direction by…",o:["α/λ","λ/(λ+α)","(λ+α)/λ","1 − λα"],a:1,e:"w̃ = (H+αI)⁻¹Hw*, so component i is scaled by λ_i/(λ_i+α): ≈1 for steep directions, ≈0 for flat ones."},
+ {q:"Which directions does L² shrink the most?",o:["High-curvature (large λ) directions","Low-curvature (small λ) directions","Only the bias direction","All directions equally"],a:1,e:"Flat, low-λ directions barely affect the loss, so they are decayed toward 0 cheaply; steep directions are preserved."},
+ {q:"L¹ regularization tends to produce solutions that are…",o:["Dense with all weights shrunk equally","Sparse, with many weights exactly zero","Larger in norm than unregularized","Identical to L²"],a:1,e:"The constant α·sign(w) push pins small weights at exactly 0 — soft thresholding — giving built-in feature selection (LASSO)."},
+ {q:"The soft-threshold solution for L¹ (diagonal H) is w̃_i = sign(w*_i)·max(|w*_i| − …, 0). Fill the blank:",o:["α·H_ii","α/H_ii","α²","H_ii/α"],a:1,e:"The dead-zone half-width is α/H_ii: weights smaller than this are zeroed; larger ones are shifted toward 0 by that amount."},
+ {q:"The Bayesian priors corresponding to L² and L¹ penalties are, respectively…",o:["Laplace and Gaussian","Gaussian and Laplace","Uniform and Gaussian","Gaussian and uniform"],a:1,e:"L² is MAP with a Gaussian prior; L¹ is MAP with a Laplace prior, whose cusp at 0 is the source of sparsity."},
+ {q:"Via the Lagrangian J + α(Ω−k), increasing α corresponds to a constraint region that is…",o:["Larger","Smaller","Unchanged","Non-convex"],a:1,e:"α and the region size k move oppositely: a bigger α forces a smaller feasible region, keeping weights nearer the origin."},
+ {q:"Compared with a penalty, an explicit constraint enforced by reprojection tends to…",o:["Drive weights toward the origin more aggressively","Avoid dead zones near the origin and prevent divergence","Require a much larger learning rate","Only work for linear models"],a:1,e:"Reprojection never encourages weights toward 0 and caps their norm, avoiding penalty dead zones and runaway growth; it also enables max-norm."},
+ {q:"Max-norm regularization constrains the norm of…",o:["The whole weight matrix","Each column (each unit's incoming weights) separately","Only the bias vector","The gradient"],a:1,e:"Constraining each column caps any single hidden unit's weights, regardless of learning rate — Hinton et al.'s recommendation with dropout."},
+ {q:"Logistic regression on perfectly separable data, without regularization, has weights that…",o:["Converge to a unique finite optimum","Grow without bound (‖w‖ → ∞)","Go to exactly zero","Oscillate forever"],a:1,e:"If w separates the data, 2w has higher likelihood, and so on — no finite optimum. Any weight decay halts this at a finite w̃, making the problem well-posed."}
+];
+let score=0,answered=new Set();
+function quizRender(){
+  $("#quiz").innerHTML=qs.map((q,i)=>
+    '<div class="q" data-i="'+i+'"><p class="stem">'+(i+1)+'. '+q.q+'</p>'+
+    q.o.map((o,j)=>'<button class="opt" data-j="'+j+'">'+o+'</button>').join("")+
+    '<div class="exp">'+q.e+'</div></div>').join("");
+  $("#score").textContent=score+" / "+qs.length;
+  $$("#quiz .q").forEach(qel=>{
+    const i=+qel.dataset.i;
+    $$(".opt",qel).forEach(b=>b.addEventListener("click",()=>{
+      if(answered.has(i))return;
+      answered.add(i);
+      const j=+b.dataset.j;
+      if(j===qs[i].a){b.classList.add("right");score++;}
+      else{b.classList.add("wrong");$$(".opt",qel)[qs[i].a].classList.add("right");}
+      $(".exp",qel).classList.add("show");
+      $("#score").textContent=score+" / "+qs.length;
+    }));
+  });
+}
+$("#qReset").addEventListener("click",()=>{score=0;answered=new Set();quizRender();annotate($("main"));});
+quizRender();
+
+/* ================= glossary + abbr ================= */
+const ABBR={
+ "MAP":"Maximum A Posteriori — the parameter estimate that maximizes the posterior (likelihood × prior)",
+ "MLE":"Maximum Likelihood Estimation — fitting parameters by maximizing the data likelihood alone",
+ "SGD":"Stochastic Gradient Descent — gradient descent on minibatches",
+ "GD":"Gradient Descent — step the parameters opposite the gradient",
+ "PCA":"Principal Component Analysis — a linear model that also relies on inverting XᵀX",
+ "LASSO":"Least Absolute Shrinkage and Selection Operator — L¹-penalized linear regression",
+ "MSE":"Mean Squared Error — the squared-error loss used in linear regression",
+ "BCE":"Binary Cross-Entropy — the logistic-regression loss",
+ "ISTA":"Iterative Shrinkage-Thresholding Algorithm — proximal gradient method that solves L¹ problems",
+ "Hessian":"The matrix of second derivatives of the loss; its curvature governs L²'s per-direction effect",
+ "PSD":"Positive Semi-Definite — a symmetric matrix with non-negative eigenvalues",
+ "AdamW":"Adam variant that decouples weight decay from the adaptive gradient update",
+ "Tikhonov":"Tikhonov regularization — the classical name for L² / ridge regularization",
+ "ridge":"Ridge regression — L²-penalized linear regression",
+ "RMSE":"Root Mean Square Error — the standard accuracy statistic on held-out data",
+ "IID":"Independent and Identically Distributed — the usual assumption on training samples"
+};
+const aKeys=Object.keys(ABBR).sort((a,b)=>b.length-a.length);
+const aEsc=s=>s.replace(/[.*+?^${}()|[\]\\\-]/g,"\\$&");
+const aPat="(?:^|(?<=[^A-Za-z0-9]))("+aKeys.map(aEsc).join("|")+")(?![A-Za-z0-9])";
+let rxG,rxT;
+try{ rxG=new RegExp(aPat,"g"); rxT=new RegExp(aPat); }
+catch(e){ rxG=new RegExp("\\b("+aKeys.map(aEsc).join("|")+")\\b","g"); rxT=new RegExp("\\b("+aKeys.map(aEsc).join("|")+")\\b"); }
+
+function annotate(root){
+  if(!root) return;
+  const bad={SCRIPT:1,STYLE:1,ABBR:1,BUTTON:1,INPUT:1,TEXTAREA:1,H1:1,H2:1,TITLE:1,PRE:1,CANVAS:1};
+  const nodes=[], w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null);
+  while(w.nextNode()){
+    const n=w.currentNode;
+    if(!n.nodeValue||!rxT.test(n.nodeValue)) continue;
+    let p=n.parentNode, ok=true;
+    while(p&&p!==root.parentNode){
+      if(p.nodeType===1){
+        if(p.namespaceURI==="http://www.w3.org/2000/svg"||bad[p.tagName]){ok=false;break;}
+        if(p.classList&&p.classList.contains("no-abbr")){ok=false;break;}
+      }
+      p=p.parentNode;
+    }
+    if(ok) nodes.push(n);
+  }
+  nodes.forEach(n=>{
+    const s=n.nodeValue, frag=document.createDocumentFragment();
+    let last=0,m; rxG.lastIndex=0;
+    while((m=rxG.exec(s))!==null){
+      const term=m[1], at=m.index+m[0].length-term.length;
+      if(at>last) frag.appendChild(document.createTextNode(s.slice(last,at)));
+      const a=document.createElement("abbr");
+      a.title=ABBR[term]; a.textContent=term; frag.appendChild(a);
+      last=at+term.length;
+      if(rxG.lastIndex===m.index) rxG.lastIndex++;
+    }
+    if(last<s.length) frag.appendChild(document.createTextNode(s.slice(last)));
+    if(frag.childNodes.length) n.parentNode.replaceChild(frag,n);
+  });
+}
+
+const pop=document.createElement("div"); pop.className="abbr-pop"; document.body.appendChild(pop);
+let popT;
+document.addEventListener("click",e=>{
+  const t=e.target, a=(t&&t.closest)?t.closest("abbr[title]"):null;
+  if(a){ pop.textContent=a.textContent+" · "+a.title; pop.classList.add("on");
+    clearTimeout(popT); popT=setTimeout(()=>pop.classList.remove("on"),4500); }
+  setTimeout(()=>annotate($("main")),40);
+});
+
+(function glossary(){
+  const gl=$("#gloss");
+  gl.innerHTML=Object.keys(ABBR).sort((a,b)=>a.toLowerCase().localeCompare(b.toLowerCase()))
+    .map(k=>"<div data-k=\""+(k+" "+ABBR[k]).toLowerCase().replace(/"/g,"")+"\"><b>"+k+"</b> — "+ABBR[k]+"</div>").join("");
+  $("#glossQ").addEventListener("input",e=>{
+    const q=e.target.value.trim().toLowerCase();
+    $$("#gloss div").forEach(d=>{ d.style.display=(!q||d.dataset.k.indexOf(q)>-1)?"":"none"; });
+  });
+})();
+
+annotate($("main"));
+})();
+</script>
+</body>
+</html>
