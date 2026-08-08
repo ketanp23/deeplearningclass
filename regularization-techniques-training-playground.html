@@ -1,0 +1,1399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 7–8 · Regularization Techniques & Training Deep Nets — Augmentation, Dropout, Bagging, Early Stopping & more</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700;800&family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root{
+  --paper:#E6E9E3;       /* drafting / graph paper */
+  --panel:#F7F8F3;       /* vellum panel */
+  --ink:#14171B;
+  --ink2:#4B515A;
+  --pri:#6C30D9;         /* violet — regularization / L2 / the penalty */
+  --acc:#C81C6E;         /* rose  — L1 / sparsity */
+  --sec:#0F7C87;         /* teal  — data term / loss / w* */
+  --warn:#B27412;        /* amber — caution / notes */
+  --rule:rgba(20,23,27,.16);
+  --rule-2:rgba(20,23,27,.34);
+  --disp:'Saira Condensed','Arial Narrow',sans-serif;
+  --body:'Spectral',Georgia,serif;
+  --mono:'IBM Plex Mono',ui-monospace,Consolas,monospace;
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:96px}
+body{
+  margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);
+  font-size:16px;line-height:1.62;
+  background-image:
+    linear-gradient(rgba(20,23,27,.045) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(20,23,27,.045) 1px,transparent 1px);
+  background-size:34px 34px;
+}
+h1,h2,h3,h4{font-family:var(--disp);text-transform:uppercase;letter-spacing:.045em;line-height:1.05;margin:0}
+p{margin:0 0 .85em}
+a{color:var(--sec)}
+:focus-visible{outline:2.5px solid var(--pri);outline-offset:3px}
+
+/* ---------- top bar ---------- */
+.hud{position:sticky;top:0;z-index:40;background:rgba(230,233,227,.93);backdrop-filter:blur(7px);
+  border-bottom:1.5px solid var(--rule-2)}
+.hud-in{max-width:1280px;margin:0 auto;padding:9px 20px;display:flex;align-items:center;gap:18px}
+.hud-id{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink2)}
+.hud-id b{color:var(--pri);font-weight:600}
+.hud-title{font-family:var(--disp);font-weight:800;font-size:17px;letter-spacing:.06em;margin-right:auto}
+.hud-prog{display:flex;align-items:center;gap:9px;font-family:var(--mono);font-size:11px;color:var(--ink2)}
+.prog-track{width:130px;height:5px;background:rgba(20,23,27,.14);border-radius:0}
+.prog-fill{height:100%;width:0;background:var(--pri);transition:width .25s}
+
+/* ---------- shell ---------- */
+.shell{max-width:1080px;margin:0 auto;padding:0 20px 90px;display:block}
+.rail{position:fixed;top:0;left:0;bottom:0;width:280px;max-width:82vw;background:var(--panel);border-right:1.5px solid var(--rule-2);
+  padding:20px 22px 30px;z-index:70;overflow-y:auto;transform:translateX(-104%);transition:transform .28s ease;box-shadow:6px 0 22px rgba(20,23,27,.14)}
+.rail.open{transform:none}
+.rail-bg{position:fixed;inset:0;background:rgba(20,23,27,.38);z-index:65;opacity:0;pointer-events:none;transition:opacity .25s}
+.rail-bg.on{opacity:1;pointer-events:auto}
+.rail-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--rule-2)}
+.rail-h{font-family:var(--mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink2)}
+.rail-x{border:1px solid var(--rule-2);background:var(--paper);color:var(--ink);font-family:var(--mono);font-size:13px;line-height:1;
+  width:28px;height:28px;cursor:pointer}
+.rail-x:hover{background:var(--pri);color:var(--panel);border-color:var(--pri)}
+.ham{flex:none;display:flex;flex-direction:column;justify-content:center;gap:5px;width:40px;height:34px;padding:0 9px;
+  border:1px solid var(--rule-2);background:var(--panel);cursor:pointer}
+.ham span{display:block;height:2px;background:var(--ink);transition:transform .25s,opacity .2s}
+.ham:hover span{background:var(--pri)}
+.ham.open span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+.ham.open span:nth-child(2){opacity:0}
+.ham.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+.rail a{display:flex;gap:10px;align-items:baseline;padding:6px 0;text-decoration:none;color:var(--ink2);font-family:var(--disp);
+  font-size:14.5px;letter-spacing:.05em;text-transform:uppercase;border-bottom:1px dotted transparent}
+.rail a span{font-family:var(--mono);font-size:10px;color:var(--pri);min-width:20px}
+.rail a:hover{color:var(--ink)}
+.rail a.on{color:var(--ink);font-weight:700}
+.rail a.on span{background:var(--pri);color:var(--panel);padding:1px 3px}
+
+/* ---------- hero ---------- */
+.hero{padding:34px 0 8px}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--pri)}
+.hero h1{font-size:clamp(38px,6.4vw,74px);font-weight:800;margin:10px 0 6px;letter-spacing:.02em}
+.hero h1 em{font-style:normal;color:var(--pri)}
+.hero-sub{max-width:60ch;color:var(--ink2);font-size:17px}
+.chartbox{margin-top:22px;border:1.5px solid var(--rule-2);background:var(--panel);position:relative;overflow:hidden}
+.chartbox svg{display:block;width:100%;height:auto}
+.chart-cap{display:flex;flex-wrap:wrap;gap:6px 20px;padding:9px 14px;border-top:1px solid var(--rule);font-family:var(--mono);
+  font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2)}
+.wp{cursor:pointer}
+.wp circle{transition:r .18s,fill .18s}
+.wp:hover circle.hit{r:15}
+.wp:hover text{fill:var(--pri)}
+
+/* ---------- sections ---------- */
+.leg{padding:52px 0 8px;border-top:1.5px solid var(--rule-2);margin-top:44px}
+.leg-head{display:flex;gap:14px;align-items:flex-start;margin-bottom:20px}
+.leg-no{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--panel);background:var(--ink);padding:3px 6px;margin-top:5px;white-space:nowrap}
+.leg h2{font-size:clamp(25px,3.6vw,38px);font-weight:800}
+.leg-kicker{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--pri);margin-bottom:4px}
+.lede{font-size:17.5px;max-width:68ch}
+
+.panel{background:var(--panel);border:1.5px solid var(--rule-2);padding:20px 22px;margin:20px 0}
+.panel-t{font-family:var(--disp);font-weight:700;font-size:16px;letter-spacing:.09em;text-transform:uppercase;
+  display:flex;align-items:center;gap:9px;margin-bottom:14px;padding-bottom:9px;border-bottom:1px solid var(--rule)}
+.panel-t::before{content:"";width:9px;height:9px;background:var(--pri);flex:none;transform:rotate(45deg)}
+.panel-t small{margin-left:auto;font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--ink2);text-transform:uppercase;font-weight:400}
+
+.two{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.three{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+
+/* key list */
+ul.kl{list-style:none;padding:0;margin:0}
+ul.kl li{padding:7px 0 7px 20px;border-bottom:1px dotted var(--rule-2);position:relative}
+ul.kl li:last-child{border-bottom:0}
+ul.kl li::before{content:"▸";position:absolute;left:0;color:var(--pri);font-size:12px;top:8px}
+ul.kl b{font-family:var(--disp);font-size:16px;letter-spacing:.04em;text-transform:uppercase}
+.mono{font-family:var(--mono);font-size:12.5px}
+.def{border-left:3px solid var(--pri);padding:2px 0 2px 14px;margin:14px 0;font-size:17px}
+.note{background:rgba(178,116,18,.1);border:1px solid rgba(178,116,18,.45);padding:11px 14px;font-size:14.5px;margin:14px 0}
+.note b{font-family:var(--disp);letter-spacing:.06em;text-transform:uppercase;color:var(--warn)}
+
+/* plain-words (grade-6) explainer */
+.eli{background:rgba(15,124,135,.06);border:1.5px solid rgba(15,124,135,.38);border-left:5px solid var(--sec);
+  padding:14px 18px 13px;margin:18px 0}
+.eli-h{display:flex;align-items:center;gap:9px;font-family:var(--disp);font-weight:700;font-size:14px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--sec);margin-bottom:9px}
+.eli-h::before{content:"";width:11px;height:11px;border-radius:50%;background:var(--sec);box-shadow:0 0 0 3px rgba(15,124,135,.22);flex:none}
+.eli-h small{margin-left:auto;font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;color:var(--ink2);font-weight:400}
+.eli p{font-size:16px;line-height:1.66;margin:0 0 .6em}
+.eli p:last-child{margin-bottom:0}
+.eli b{color:var(--ink);font-weight:600}
+.eli .pic{font-style:italic;color:var(--sec)}
+
+/* display equation */
+.eqn{font-family:var(--mono);font-size:15px;line-height:1.9;background:rgba(108,48,217,.055);border-left:4px solid var(--pri);
+  padding:12px 16px;margin:14px 0;overflow-x:auto;letter-spacing:.01em}
+.eqn .lbl{color:var(--ink2);font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+.eqn b{color:var(--pri)} .eqn .t{color:var(--sec)}
+sub,sup{font-size:.72em;line-height:0}
+
+/* table */
+table.t{width:100%;border-collapse:collapse;font-size:14px}
+table.t th{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;text-align:left;
+  padding:8px 9px;border-bottom:1.5px solid var(--ink);color:var(--ink2)}
+table.t td{padding:8px 9px;border-bottom:1px solid var(--rule);vertical-align:top}
+table.t tr:hover td{background:rgba(108,48,217,.06)}
+table.t td.hl{color:var(--pri);font-weight:600}
+
+/* controls */
+.ctl{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+button.chip{font-family:var(--disp);font-size:14px;letter-spacing:.06em;text-transform:uppercase;padding:6px 13px;
+  background:transparent;border:1.5px solid var(--rule-2);color:var(--ink2);cursor:pointer}
+button.chip:hover{border-color:var(--ink);color:var(--ink)}
+button.chip.on{background:var(--ink);border-color:var(--ink);color:var(--panel)}
+button.chip.mag.on{background:var(--pri);border-color:var(--pri)}
+button.chip.rose.on{background:var(--acc);border-color:var(--acc)}
+.slider{display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:center;margin:12px 0}
+.slider label{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink2);grid-column:1/-1}
+.slider input[type=range]{width:100%;accent-color:var(--pri)}
+.slider output{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--pri);min-width:92px;text-align:right}
+input[type=number]{font-family:var(--mono);font-size:13px;padding:5px 7px;border:1.5px solid var(--rule-2);background:#fff;width:100%}
+.field{margin-bottom:9px}
+.field label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink2);margin-bottom:3px}
+
+/* readouts */
+.reads{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:1.5px;background:var(--rule-2);border:1.5px solid var(--rule-2)}
+.read{background:var(--panel);padding:10px 12px}
+.read i{font-style:normal;display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2)}
+.read b{display:block;font-family:var(--disp);font-size:26px;font-weight:700;letter-spacing:.02em;line-height:1.15}
+.read b s{text-decoration:none;font-size:13px;color:var(--ink2);font-weight:500}
+.read.warn b{color:var(--warn)} .read.bad b{color:var(--acc)} .read.good b{color:var(--sec)} .read.pri b{color:var(--pri)}
+
+/* detail block */
+.detail{margin-top:14px;border-top:1px solid var(--rule);padding-top:12px;min-height:104px}
+.detail h4{font-size:19px;margin-bottom:3px}
+.detail .spec{font-family:var(--mono);font-size:11.5px;color:var(--pri);letter-spacing:.06em;margin-bottom:7px}
+
+/* cards */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:12px}
+.card{border:1.5px solid var(--rule-2);background:var(--panel);padding:14px;cursor:pointer;transition:transform .16s}
+.card:hover{transform:translateY(-3px);border-color:var(--pri)}
+.card h4{font-size:16px;margin-bottom:5px}
+.card .tag{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--pri)}
+.card p{font-size:14px;margin:6px 0 0;color:var(--ink2)}
+.card .fix{display:none;margin-top:9px;padding-top:8px;border-top:1px dotted var(--rule-2);font-size:13.5px}
+.card.open .fix{display:block}
+.card.open{border-color:var(--pri)}
+
+/* quiz */
+.q{border-bottom:1px solid var(--rule);padding:14px 0}
+.q p.stem{font-weight:600;margin-bottom:8px}
+.opt{display:block;width:100%;text-align:left;font-family:var(--body);font-size:14.5px;padding:6px 11px;margin-bottom:5px;
+  background:#fff;border:1.5px solid var(--rule);cursor:pointer;color:var(--ink)}
+.opt:hover{border-color:var(--ink2)}
+.opt.right{border-color:var(--sec);background:rgba(15,124,135,.11);font-weight:600}
+.opt.wrong{border-color:var(--acc);background:rgba(200,28,110,.09);text-decoration:line-through}
+.exp{display:none;font-size:13.5px;color:var(--ink2);border-left:3px solid var(--sec);padding-left:11px;margin-top:7px}
+.exp.show{display:block}
+
+/* misc */
+.stat-row{display:flex;flex-wrap:wrap;gap:10px;font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2)}
+.foot{margin-top:52px;border-top:1.5px solid var(--rule-2);padding-top:16px;font-family:var(--mono);font-size:11px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink2);display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between}
+.badge{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  border:1px solid var(--rule-2);padding:1px 6px;color:var(--ink2)}
+
+/* figures */
+.fig{margin:20px 0;border:1.5px solid var(--rule-2);background:var(--panel);padding:16px 18px 12px}
+.fig svg{display:block;width:100%;height:auto}
+.fig figcaption{margin-top:11px;padding-top:9px;border-top:1px solid var(--rule);font-family:var(--mono);
+  font-size:11px;letter-spacing:.05em;color:var(--ink2);line-height:1.55}
+.fig figcaption b{color:var(--pri);letter-spacing:.14em;margin-right:6px}
+
+/* abbreviations */
+abbr[title]{border-bottom:1px dotted var(--pri);text-decoration:none;cursor:help}
+abbr[title]:hover{background:rgba(108,48,217,.1)}
+.abbr-pop{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--ink);color:var(--panel);
+  font-family:var(--mono);font-size:12.5px;line-height:1.5;padding:9px 15px;z-index:60;max-width:min(92vw,540px);
+  opacity:0;pointer-events:none;transition:opacity .18s;border-left:4px solid var(--pri)}
+.abbr-pop.on{opacity:1}
+
+/* key takeaways */
+.tk{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1.5px;background:var(--rule-2);border:1.5px solid var(--rule-2)}
+.tk-item{background:var(--panel);padding:17px 18px;display:flex;gap:14px;align-items:flex-start}
+.tk-item i{font-style:normal;font-family:var(--disp);font-size:30px;font-weight:800;color:var(--pri);line-height:.9;min-width:36px}
+.tk-item h4{font-size:16.5px;margin-bottom:5px}
+.tk-item p{font-size:14.5px;margin:0;color:var(--ink2);line-height:1.55}
+.headline{border:1.5px solid var(--ink);background:var(--ink);color:var(--paper);padding:20px 22px;margin:20px 0}
+.headline h3{font-size:clamp(19px,2.6vw,26px);color:var(--paper);margin-bottom:8px}
+.headline p{margin:0;font-size:16px;opacity:.92}
+.headline b{color:#C79BF0}
+
+/* glossary */
+.gloss{column-count:2;column-gap:28px}
+.gloss div{break-inside:avoid;padding:5px 0;border-bottom:1px dotted var(--rule);font-size:14px;line-height:1.45}
+.gloss b{font-family:var(--mono);font-size:12px;color:var(--pri);letter-spacing:.03em}
+input.search{font-family:var(--mono);font-size:13px;padding:7px 10px;border:1.5px solid var(--rule-2);background:#fff;width:100%;margin-bottom:14px}
+
+/* code */
+pre.code{background:#14171B;color:#E9EDDD;font-family:var(--mono);font-size:12.5px;line-height:1.65;
+  padding:13px 16px;overflow-x:auto;margin:12px 0;border-left:4px solid var(--pri)}
+pre.code .c{color:#8a967f}
+pre.code .k{color:#C79BF0}
+pre.code .s{color:#7fc8d2}
+
+/* labs */
+.lab{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0}
+.cv{border:1.5px solid var(--rule-2);background:#fff}
+.cv canvas{display:block;width:100%;height:auto}
+.cv-cap{font-family:var(--mono);font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink2);
+  padding:6px 9px;border-top:1px solid var(--rule);background:var(--panel)}
+.bar-row{display:grid;grid-template-columns:130px 1fr 92px;gap:10px;align-items:center;font-family:var(--mono);
+  font-size:11px;letter-spacing:.04em;margin:6px 0}
+.bar-row .tr{background:rgba(20,23,27,.1);height:13px;position:relative}
+.bar-row .fl{position:absolute;left:0;top:0;bottom:0;background:var(--pri);transition:width .18s}
+.bar-row .fl.rose{background:var(--acc)} .bar-row .fl.sec{background:var(--sec)} .bar-row .fl.dim{background:var(--rule-2)}
+.bar-row b{text-align:right;font-weight:600}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink2);margin:8px 0}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:16px;height:3px;display:inline-block}
+.contour-wrap{border:1.5px solid var(--rule-2);background:#fff}
+.contour-wrap svg{display:block;width:100%;height:auto}
+
+@media(max-width:960px){
+  .hud-title{font-size:14px}
+  .two,.three,.lab{grid-template-columns:1fr}
+  .gloss{column-count:1}
+}
+@media(prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+  html{scroll-behavior:auto}
+}
+
+/* ===== volume II additions ===== */
+.augrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+.augrid .cv canvas{width:100%}
+.netwrap{border:1.5px solid var(--rule-2);background:#fff}
+.netwrap svg{display:block;width:100%;height:auto}
+.pipe{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-family:var(--disp);font-size:13.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink2);margin:10px 0}
+.pipe b{background:#fff;border:1.5px solid var(--rule-2);padding:6px 11px;color:var(--ink)}
+.pipe span{font-family:var(--mono);color:var(--rule-2)}
+.tvbar{display:grid;grid-template-columns:96px 1fr 60px;gap:10px;align-items:center;font-family:var(--mono);font-size:11px;margin:5px 0}
+.tvbar .tr{background:rgba(20,23,27,.08);height:14px;position:relative}
+.tvbar .fl{position:absolute;left:0;top:0;bottom:0;background:var(--sec)}
+.tvbar .fl.pri{background:var(--pri)}
+
+/* in-practice use-case block */
+.uc{background:rgba(108,48,217,.05);border:1.5px solid rgba(108,48,217,.32);border-left:5px solid var(--pri);padding:14px 18px 13px;margin:18px 0}
+.uc-h{display:flex;align-items:center;gap:9px;font-family:var(--disp);font-weight:700;font-size:14px;letter-spacing:.1em;text-transform:uppercase;color:var(--pri);margin-bottom:9px}
+.uc-h::before{content:"";width:11px;height:11px;background:var(--pri);transform:rotate(45deg);flex:none}
+.uc-h .tag{margin-left:auto;font-family:var(--mono);font-size:9px;letter-spacing:.12em;color:var(--pri);font-weight:400;border:1px solid rgba(108,48,217,.4);padding:2px 7px;text-transform:uppercase}
+.uc p{font-size:15px;line-height:1.6;margin:0 0 .55em}
+.uc p:last-child{margin-bottom:0}
+.uc b{color:var(--ink);font-weight:600}
+.uc .case{font-family:var(--mono);font-size:11.5px;line-height:1.5;color:var(--ink2);margin-top:9px;padding-top:9px;border-top:1px dashed var(--rule-2)}
+.uc .case b{color:var(--pri)}
+</style>
+</head>
+<body>
+
+<div class="hud">
+  <div class="hud-in">
+    <button class="ham" id="ham" aria-label="Open toolkit menu" aria-expanded="false" aria-controls="rail"><span></span><span></span><span></span></button>
+    <div class="hud-id">CH <b>7–8</b></div>
+    <div class="hud-title">Regularization Techniques &amp; Training Deep Nets</div>
+    <div class="hud-prog"><span id="progTxt">0%</span><div class="prog-track"><div class="prog-fill" id="progFill"></div></div></div>
+  </div>
+</div>
+
+<div class="shell">
+
+  <nav class="rail no-abbr" id="rail" aria-label="Toolkit menu">
+    <div class="rail-top"><div class="rail-h">Toolkit / 9 methods + summary</div><button class="rail-x" id="railX" aria-label="Close menu">&#10005;</button></div>
+    <a href="#l1"><span>01</span>Dataset augmentation</a>
+    <a href="#l2"><span>02</span>Noise robustness</a>
+    <a href="#l3"><span>03</span>Semi-supervised</a>
+    <a href="#l4"><span>04</span>Multitask learning</a>
+    <a href="#l5"><span>05</span>Early stopping</a>
+    <a href="#l6"><span>06</span>Tying &amp; sharing</a>
+    <a href="#l7"><span>07</span>Bagging &amp; ensembles</a>
+    <a href="#l8"><span>08</span>Dropout</a>
+    <a href="#l9"><span>09</span>Why deep nets fight back</a>
+    <a href="#l10"><span>Σ</span>Key takeaways</a>
+  </nav>
+  <div class="rail-bg" id="railBg"></div>
+
+  <main>
+
+  <!-- ================= HERO ================= -->
+  <header class="hero">
+    <div class="eyebrow">Deep learning · Chapter 7.4–7.12 &amp; 8 · The generalization toolkit</div>
+    <h1>Beyond the<br><em>penalty</em>.</h1>
+    <p class="hero-sub">Norm penalties are only the beginning. This volume is the rest of the regularizer's toolbox — make more data, add noise, borrow from unlabeled examples and sister tasks, stop at the right moment, share weights, average whole ensembles, and drop units at random. Every method here attacks the same enemy: the gap between how well a model does on its practice set and how well it does in the wild. The labs are live — curves, ensembles, dropout masks and vanishing gradients all computed in your browser.</p>
+
+    <div class="chartbox">
+      <svg viewBox="0 0 960 372" role="img" aria-label="Training and validation error curves over epochs, with the generalization gap shaded and an early-stopping flag at the validation minimum">
+        <rect width="960" height="372" fill="#F7F8F3"/>
+        <!-- axes -->
+        <line x1="70" y1="40" x2="70" y2="330" stroke="#14171B" stroke-width="1.4"/>
+        <line x1="70" y1="330" x2="915" y2="330" stroke="#14171B" stroke-width="1.4"/>
+        <text x="26" y="48" font-family="IBM Plex Mono,monospace" font-size="10" fill="#4B515A">error</text>
+        <text x="866" y="350" font-family="IBM Plex Mono,monospace" font-size="10" fill="#4B515A">epochs →</text>
+
+        <!-- generalization gap shading between val and train -->
+        <path id="gapArea" d="M70 150 C 230 120, 360 118, 520 130 C 640 140, 760 155, 900 172 L900 250 C 760 258, 640 262, 520 262 C 360 262, 230 246, 70 214 Z" fill="#6C30D9" opacity=".08"/>
+        <text x="600" y="205" font-family="IBM Plex Mono,monospace" font-size="10" letter-spacing="1.2" fill="#6C30D9">GENERALIZATION GAP  ·  what every method here attacks</text>
+
+        <!-- training error: keeps dropping -->
+        <path d="M70 214 C 230 246, 360 262, 520 262 C 640 262, 760 258, 900 250" fill="none" stroke="#0F7C87" stroke-width="2.4"/>
+        <text x="905" y="248" text-anchor="end" font-family="IBM Plex Mono,monospace" font-size="10" fill="#0F7C87">training error ↓</text>
+
+        <!-- validation error: dips then rises -->
+        <path id="valPath" d="M70 150 C 230 120, 360 118, 520 130 C 640 140, 760 155, 900 172" fill="none" stroke="#C81C6E" stroke-width="2.4"/>
+        <text x="150" y="132" font-family="IBM Plex Mono,monospace" font-size="10" fill="#C81C6E">validation error</text>
+
+        <!-- early stopping flag near the val minimum (~x=430) -->
+        <line x1="430" y1="118" x2="430" y2="330" stroke="#B27412" stroke-width="1.4" stroke-dasharray="5 4"/>
+        <path d="M430 96 L470 104 L430 112 Z" fill="#B27412"/>
+        <text x="476" y="106" font-family="IBM Plex Mono,monospace" font-size="10" fill="#B27412">EARLY STOP</text>
+        <text x="430" y="348" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9" fill="#B27412">best generalization</text>
+
+        <g id="wps"></g>
+        <g id="opt">
+          <circle r="5" fill="#6C30D9"/>
+          <animateMotion dur="16s" repeatCount="indefinite" rotate="0"><mpath href="#valPath"/></animateMotion>
+        </g>
+      </svg>
+      <div class="chart-cap">
+        <span>◆ 9 methods · 9 live labs</span>
+        <span>◆ Goodfellow · Deep Learning · §7.4–7.12 &amp; ch. 8</span>
+        <span>◆ everything computed in-browser</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= 01 DATASET AUGMENTATION ================= -->
+  <section class="leg" id="l1">
+    <div class="leg-head"><div class="leg-no">01</div><div>
+      <div class="leg-kicker">Make more data · §7.4</div><h2>Dataset Augmentation</h2></div></div>
+
+    <p class="lede">The best way to make a model generalize is to train it on more data. When you can't collect more, you can <b>manufacture</b> it: take each training example and apply transformations that change the input but keep the correct answer the same. A model that has seen a cat rotated, shifted, brightened and flipped ten ways learns that "cat" survives all of those — an invariance you got for free.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> you only have one photo of your dog, but you want your friend to recognise the dog from any angle. So you make copies: one tilted a bit, one moved to the corner, one brighter, one darker, one mirror-flipped. Now there are lots of "different" pictures that are all still your dog.</p>
+      <p>That's dataset augmentation. The computer takes each training picture and quietly makes many slightly-changed versions, so it sees far more examples than you actually collected. The one rule: the change must not change the <b>answer</b>. Rotating a photo of a dog is fine — it's still a dog. But flipping the letter "b" turns it into "d", so for reading letters you're <b>not</b> allowed to flip. Pick only the changes that keep the label true.</p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Augmentation studio <small>One image becomes many · resample to shuffle</small></div>
+      <div class="two" style="grid-template-columns:.9fr 1.1fr">
+        <div>
+          <div class="cv"><canvas id="augBase" width="150" height="150"></canvas><div class="cv-cap">Original — one labelled example ("arrow ↗")</div></div>
+          <div class="slider"><div class="field"><label>Max rotation</label><input type="range" id="augRot" min="0" max="45" value="20"></div><output id="augRoto" class="mono">± 20°</output></div>
+          <div class="slider"><div class="field"><label>Max shift</label><input type="range" id="augSh" min="0" max="40" value="18"></div><output id="augSho" class="mono">± 18 px</output></div>
+          <div class="slider"><div class="field"><label>Max brightness</label><input type="range" id="augBr" min="0" max="80" value="35"></div><output id="augBro" class="mono">± 35</output></div>
+          <div class="slider"><div class="field"><label>Noise</label><input type="range" id="augNo" min="0" max="60" value="15"></div><output id="augNoo" class="mono">15%</output></div>
+          <div class="ctl" style="margin-top:6px"><button class="chip mag" id="augFlip">Allow mirror flip: OFF</button><button class="chip" id="augShuffle">Resample</button></div>
+        </div>
+        <div>
+          <p style="font-size:13px;color:var(--ink2);margin:0 0 4px" class="mono">EIGHT SYNTHETIC EXAMPLES FROM THE ONE ABOVE</p>
+          <div class="augrid" id="augGrid"></div>
+          <div class="note" style="margin-top:12px"><b>Label test.</b> Turn on mirror flip and watch the arrow point the other way. For "which direction?" that flip <i>breaks</i> the label; for "is there an arrow?" it's fine. Always ask what your label must survive.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panel-t">Good transforms, by data type</div>
+        <ul class="kl">
+          <li><b>Images = </b>flips, crops, rotations, scaling, colour/brightness jitter, small elastic warps, cutout.</li>
+          <li><b>Audio = </b>time shift, pitch shift, speed change, background-noise mixing.</li>
+          <li><b>Text = </b>synonym swaps, back-translation — carefully, meaning must survive.</li>
+          <li><b>Any model = </b>injecting small input noise is itself a form of augmentation (next section).</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <div class="panel-t">The cardinal rule</div>
+        <p style="font-size:15px">A transform is legal only if it <b>preserves the label</b>.</p>
+        <ul class="kl">
+          <li><b>Horizontal flip = </b>fine for "cat vs dog"; wrong for "b vs d" or "left vs right".</li>
+          <li><b>Big rotation = </b>fine for aerial photos; wrong for "6 vs 9".</li>
+          <li><b>Rule of thumb = </b>only apply a change your classifier should be blind to. Augmentation teaches exactly those invariances.</li>
+        </ul>
+        <div class="note"><b>Careful.</b> Never augment the validation or test set with random transforms — you'd be grading the model on made-up data. Augment training only.</div>
+      </div>
+    </div>
+  
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">Computer vision</span></div>
+      <p>Every serious image model is trained with augmentation. The <b>standard ImageNet recipe</b> is a random resized crop, a random horizontal flip and a little colour jitter — that alone buys several points of accuracy. Modern pipelines automate the choices with <b>RandAugment</b> and <b>AutoAugment</b>.</p>
+      <p>It's the difference-maker on <b>small datasets</b>: a medical-imaging model with only a few hundred scans leans on rotations, flips and elastic deformations to behave as if it had many times more data.</p>
+      <div class="case"><b>Beyond vision:</b> SpecAugment (time/frequency masks) for speech; back-translation and synonym swaps for NLP; time and pitch shifts for audio.</div>
+    </div>
+  </section>
+
+  <!-- ================= 02 NOISE ROBUSTNESS ================= -->
+  <section class="leg" id="l2">
+    <div class="leg-head"><div class="leg-no">02</div><div>
+      <div class="leg-kicker">Add noise on purpose · §7.5</div><h2>Noise Robustness</h2></div></div>
+
+    <p class="lede">Deliberately adding noise during training makes a model tougher. Noise can be injected in three places, each with a different effect: on the <b>inputs</b> (a form of augmentation that, for many models, equals a weight penalty), on the <b>weights</b> (pushes the solution toward flat, stable regions), and on the <b>outputs</b> as label smoothing (stops the model from becoming dangerously over-confident).</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> if you only ever practise catching a ball thrown perfectly straight, one wobbly throw will fool you. But if your friend throws it a little wobbly on purpose during practice, you learn to catch it no matter what. A bit of "mess" in practice makes you steady in real games.</p>
+      <p>Noise robustness is practising with a little mess on purpose. Sprinkle small random changes on the inputs, or on the model's own knobs, or soften the answers from a hard "100% sure" down to "90% sure." Each kind of sprinkle stops the model from clinging too tightly to the exact practice examples, so it stays calm and sensible when the real world is a bit different from practice.</p>
+    </div>
+
+    <div class="three">
+      <div class="panel">
+        <div class="panel-t">On the inputs</div>
+        <p style="font-size:14px">Add small random noise to each input. For a linear model this is provably equivalent to an L² penalty on the weights — the noise variance plays the role of α.</p>
+      </div>
+      <div class="panel">
+        <div class="panel-t">On the weights</div>
+        <p style="font-size:14px">Perturb the weights with noise each step. This favours solutions sitting in <b>flat</b> valleys, where small weight changes barely change the output — a hallmark of robust minima.</p>
+      </div>
+      <div class="panel">
+        <div class="panel-t">On the outputs</div>
+        <p style="font-size:14px">Real labels can be wrong. Label smoothing replaces hard targets (1, 0, 0) with soft ones (e.g. 0.9, 0.05, 0.05) so the model never chases the impossible certainty of exact 0 and 1.</p>
+      </div>
+    </div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panel-t">Input noise ≈ weight decay <small>Live</small></div>
+        <div class="slider"><div class="field"><label>Input-noise variance σ²</label><input type="range" id="nrSig" min="0" max="150" value="40"></div><output id="nrSigo" class="mono">0.40</output></div>
+        <div class="reads">
+          <div class="read pri"><i>Equivalent L² α</i><b id="nrAlpha">—</b></div>
+          <div class="read good"><i>Effect</i><b id="nrEff" style="font-size:16px">—</b></div>
+        </div>
+        <p style="font-size:13.5px;color:var(--ink2);margin-top:10px">For a linear model with squared error, averaging over small input noise of variance σ² adds a term α‖w‖² with α = σ². More noise in practice = a firmer leash on the weights — the exact link back to Volume I.</p>
+      </div>
+      <div class="panel">
+        <div class="panel-t">Label smoothing <small>Live · 5-class target</small></div>
+        <div class="slider"><div class="field"><label>Smoothing ε</label><input type="range" id="lsEps" min="0" max="60" value="10"></div><output id="lsEpso" class="mono">0.10</output></div>
+        <div id="lsBars"></div>
+        <p style="font-size:13px;color:var(--ink2);margin-top:8px">True class target = 1 − ε + ε/K; every other class = ε/K. At ε = 0 you get the hard one-hot target; raise ε and the certainty softens.</p>
+      </div>
+    </div>
+  
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">Label smoothing 0.1</span></div>
+      <p>If you train a modern image classifier or Transformer, you're almost certainly using <b>label smoothing of 0.1</b> — introduced with Inception and now a default in vision and translation. It improves accuracy and, importantly, <b>calibration</b> (the model's confidence actually means something).</p>
+      <p>Input and weight noise appear too: Gaussian input noise is a cheap augmentation, and weight noise nudges training toward <b>flat minima</b> that generalise better.</p>
+      <div class="case"><b>Typical setting:</b> label_smoothing = 0.1 in the cross-entropy loss — a staple of image-classification and machine-translation training.</div>
+    </div>
+  </section>
+
+  <!-- ================= 03 SEMI-SUPERVISED ================= -->
+  <section class="leg" id="l3">
+    <div class="leg-head"><div class="leg-no">03</div><div>
+      <div class="leg-kicker">Borrow from unlabeled data · §7.6</div><h2>Semi-Supervised Learning</h2></div></div>
+
+    <p class="lede">Labels are expensive; raw data is cheap. Semi-supervised learning uses a small pile of <b>labeled</b> examples together with a large pile of <b>unlabeled</b> ones. The unlabeled data reveals the shape of the input distribution — where the clusters are — and a good decision boundary should run through the <b>empty valleys</b> between clusters, not slice through their middle.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> imagine a classroom photo where only two kids are named for you, but you can see everyone. Even without names, you notice the kids naturally stand in two friend-groups. To split "group A" from "group B", you'd draw your line down the empty aisle between the groups — not straight through the middle of one huddle.</p>
+      <p>Semi-supervised learning does exactly this. A few examples have labels (names); tons of examples don't. The unlabeled ones show where the crowds gather, and the model puts its dividing line in the <b>gap</b> between crowds. So a handful of labels plus lots of unlabeled data can beat the handful of labels alone.</p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Cluster bench <small>Toggle the unlabeled cloud and watch the boundary move</small></div>
+      <div class="two" style="grid-template-columns:1fr .8fr">
+        <div class="cv"><canvas id="ssCanvas" width="380" height="300"></canvas><div class="cv-cap">● labeled · faint dots = unlabeled · line = decision boundary</div></div>
+        <div>
+          <div class="ctl"><button class="chip mag on" id="ssOff">Labeled only</button><button class="chip" id="ssOn">Use unlabeled too</button></div>
+          <div class="slider"><div class="field"><label>Labeled points per class</label><input type="range" id="ssK" min="1" max="6" value="2"></div><output id="ssKo" class="mono">2</output></div>
+          <div class="reads">
+            <div class="read"><i>Labeled</i><b id="ssNL">—</b></div>
+            <div class="read good"><i>Unlabeled seen</i><b id="ssNU">—</b></div>
+          </div>
+          <p style="font-size:13.5px;color:var(--ink2);margin-top:10px" id="ssMsg">—</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panel-t">The key assumptions</div>
+        <ul class="kl">
+          <li><b>Cluster assumption = </b>points in the same cluster share a label; boundaries live in low-density regions.</li>
+          <li><b>Manifold assumption = </b>data lies on a lower-dimensional surface; nearby points on it share labels.</li>
+          <li><b>Shared representation = </b>learn features h that make P(x) and P(y|x) both easy — the unlabeled data shapes h.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <div class="panel-t">Why it regularizes</div>
+        <p style="font-size:14.5px">With few labels, many boundaries fit the labeled points equally well. The unlabeled data breaks the tie, ruling out boundaries that cut through dense regions. That extra constraint is the regularization — you've added information without adding a single label.</p>
+        <div class="note"><b>When it fails.</b> If the clusters don't actually line up with the classes, the unlabeled data can mislead. The assumptions must hold.</div>
+      </div>
+    </div>
+  
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">When labels are expensive</span></div>
+      <p>Semi-supervised learning shines when unlabeled data is plentiful but labels cost real money or expertise — <b>medical images, speech, web-scale photos</b>. Methods like <b>FixMatch</b> and <b>pseudo-labeling</b> reach near fully-supervised accuracy using a tiny fraction of the labels.</p>
+      <p>Google's <b>Noisy Student</b> pushed ImageNet state-of-the-art by training on a small labeled set plus <b>300 million unlabeled</b> images.</p>
+      <div class="case"><b>Where it shows up:</b> any domain where collecting inputs is easy but labeling needs a doctor, a linguist, or hours of human time.</div>
+    </div>
+  </section>
+
+  <!-- ================= 04 MULTITASK ================= -->
+  <section class="leg" id="l4">
+    <div class="leg-head"><div class="leg-no">04</div><div>
+      <div class="leg-kicker">Learn several jobs at once · §7.7</div><h2>Multitask Learning</h2></div></div>
+
+    <p class="lede">Train one model to do several related tasks at the same time. The lower layers become a <b>shared representation</b> that must work for every task, while each task keeps its own small output head. Because those shared features are pooled from all tasks' data and pressured to be useful for all of them, they generalize better than features learned for any one task alone.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> a student who plays football, basketball <i>and</i> tennis builds strong general fitness — speed, balance, quick reactions — that helps in every sport. Someone who only ever plays one game misses that shared base.</p>
+      <p>Multitask learning is one brain learning several related jobs together. The bottom part of the network learns general skills useful for <b>all</b> the jobs (like the athlete's fitness), and only the very top splits into a little piece per job. Sharing that base means more total practice flows into the general skills, so the model learns them better — and each individual job benefits.</p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Shared-trunk architecture</div>
+      <figure class="fig" style="margin:0;border:0;padding:0">
+        <svg id="mtSvg" viewBox="0 0 640 260" aria-label="A shared trunk of layers feeding several task-specific heads"></svg>
+        <figcaption><b>FIG 04</b> Inputs feed shared layers (violet) that all tasks reuse; each task branches into its own head (teal). The shared layers see every task's data, so they can't overfit to one task's quirks.</figcaption>
+      </figure>
+    </div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panel-t">Sharing calculator <small>Live</small></div>
+        <div class="slider"><div class="field"><label>Number of related tasks</label><input type="range" id="mtK" min="1" max="8" value="4"></div><output id="mtKo" class="mono">4</output></div>
+        <div class="reads">
+          <div class="read good"><i>Effective data on shared features</i><b id="mtData">— <s>×</s></b></div>
+          <div class="read pri"><i>Params vs separate models</i><b id="mtParam">— <s>saved</s></b></div>
+        </div>
+        <p style="font-size:13.5px;color:var(--ink2);margin-top:10px">More tasks pour more data into the same shared trunk (× more effective data) and avoid rebuilding a full network per task (params saved). The shared trunk is the regularizer.</p>
+      </div>
+      <div class="panel">
+        <div class="panel-t">When it helps</div>
+        <ul class="kl">
+          <li><b>Related tasks = </b>they must share underlying structure; forcing unrelated tasks to share can hurt (negative transfer).</li>
+          <li><b>Data-poor tasks = </b>a task with few examples rides on features learned from data-rich siblings.</li>
+          <li><b>Auxiliary tasks = </b>even a "fake" extra task can be added purely to shape better shared features.</li>
+        </ul>
+      </div>
+    </div>
+  
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">Shared backbones</span></div>
+      <p>Multitask learning is everywhere a single model must do several related jobs. A <b>self-driving perception network</b> shares one backbone and simultaneously predicts detection, lane segmentation and depth — cheaper and more robust than three separate models.</p>
+      <p>In NLP, <b>T5</b> casts every task as text-to-text and trains them together; <b>MT-DNN</b> fine-tunes one encoder across many language tasks at once.</p>
+      <div class="case"><b>Bonus trick:</b> add an auxiliary task purely to shape better shared features — even a 'fake' objective can regularize the backbone.</div>
+    </div>
+  </section>
+
+  <!-- ================= 05 EARLY STOPPING ================= -->
+  <section class="leg" id="l5">
+    <div class="leg-head"><div class="leg-no">05</div><div>
+      <div class="leg-kicker">Stop at the right moment · §7.8</div><h2>Early Stopping</h2></div></div>
+
+    <p class="lede">As training proceeds, training error keeps falling but validation error falls, bottoms out, then climbs as the model starts memorizing. Early stopping is the simplest, most-used regularizer of all: watch the validation error, and keep the weights from the moment it was lowest. It costs almost nothing and quietly limits how far the weights drift from their starting point — much like an L² penalty.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> you're revising for a test. For a while, more studying helps. But past a point you start memorising the exact practice questions word-for-word, and you actually do <b>worse</b> on the real test because it asks things slightly differently. The smart move is to stop revising at the moment you were doing best on fresh practice questions.</p>
+      <p>Early stopping is that smart move for a model. It keeps a set of "fresh" questions aside (the <b>validation set</b>), checks its score on them as it trains, and remembers the exact moment that score was highest. When the score starts slipping, it stops and goes back to that best moment. Simple, cheap, and it works.</p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Early-stopping bench <small>Drag the stop line to any epoch</small></div>
+      <div class="two" style="grid-template-columns:1.2fr .8fr">
+        <div class="cv"><canvas id="esCanvas" width="480" height="280"></canvas><div class="cv-cap">teal = training error · rose = validation error · amber = your stop</div></div>
+        <div>
+          <div class="slider"><div class="field"><label>Stop at epoch</label><input type="range" id="esT" min="1" max="100" value="100"></div><output id="esTo" class="mono">100</output></div>
+          <div class="reads">
+            <div class="read"><i>Val error at your stop</i><b id="esValStop">—</b></div>
+            <div class="read bad"><i>Val error if you run to the end</i><b id="esValEnd">—</b></div>
+            <div class="read good"><i>Best stop is epoch</i><b id="esBest">—</b></div>
+          </div>
+          <div class="ctl" style="margin-top:10px"><button class="chip mag" id="esOpt">Jump to best epoch</button></div>
+          <p style="font-size:13px;color:var(--ink2);margin-top:8px" id="esMsg">—</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panel-t">How it's done</div>
+        <ul class="kl">
+          <li><b>Validation set = </b>hold out data the training never touches; measure error on it periodically.</li>
+          <li><b>Patience = </b>don't stop at the first uptick; wait p checks without improvement to ride out noise, then roll back to the best.</li>
+          <li><b>Keep the best = </b>save a checkpoint whenever validation improves; restore it at the end.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <div class="panel-t">Why it's a regularizer</div>
+        <p style="font-size:14.5px">Stopping after t steps limits how far the weights can travel from their small initial values — the number of steps behaves like an inverse regularization strength. For a simple quadratic loss it can be shown to be <b>equivalent to L²</b>, with more training ≈ smaller α (a weaker leash).</p>
+        <div class="note"><b>Bonus.</b> It's practically free — you were computing validation error anyway — and it automatically finds the right amount of training instead of guessing.</div>
+      </div>
+    </div>
+  
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">In every training loop</span></div>
+      <p>Early stopping is probably the most-used regularizer of all, because it's baked into the tools. Keras has an <b>EarlyStopping callback</b>; every Kaggle notebook uses it; gradient boosting exposes it directly as <b>early_stopping_rounds</b> in XGBoost and LightGBM.</p>
+      <p>The standard setup: monitor validation loss, keep going while it improves, and roll back to the best checkpoint once it hasn't improved for a set <b>patience</b>.</p>
+      <div class="case"><b>Typical setting:</b> patience = 5–20 evaluations, restore_best_weights = True — free regularization you were already paying for.</div>
+    </div>
+  </section>
+
+  <!-- ================= 06 TYING & SHARING ================= -->
+  <section class="leg" id="l6">
+    <div class="leg-head"><div class="leg-no">06</div><div>
+      <div class="leg-kicker">Force parameters to agree · §7.9</div><h2>Parameter Tying &amp; Parameter Sharing</h2></div></div>
+
+    <p class="lede">Sometimes we know in advance that different parameters ought to be related. <b>Parameter tying</b> adds a penalty that pushes two parameter sets to stay close, ‖w<sub>A</sub> − w<sub>B</sub>‖². <b>Parameter sharing</b> goes further and forces them to be <i>exactly equal</i> — the same weights reused in many places. Sharing is the powerhouse behind convolutional networks, and it slashes the parameter count while baking in an invariance.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> to find every cat in a big photo, you don't need a separate pair of "cat-spotting eyes" for the top-left corner, another for the middle, another for the bottom-right. One good "cat detector" slid across the whole picture does the job everywhere. Reusing the same detector is far cheaper than building a fresh one for every spot.</p>
+      <p>Parameter sharing is reusing the same set of weights in many places instead of learning new ones each time. It saves a huge amount of memory, and it teaches the model a useful truth: a cat is a cat wherever it appears in the image. Parameter tying is the gentler cousin — instead of forcing two weight sets to be <b>identical</b>, it just nudges them to stay <b>similar</b>.</p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Shared vs unique weights</div>
+      <figure class="fig" style="margin:0;border:0;padding:0">
+        <svg id="psSvg" viewBox="0 0 640 210" aria-label="A convolution reuses one small kernel across every position, versus a dense layer with a unique weight per connection"></svg>
+        <figcaption><b>FIG 06</b> Left: a dense layer gives every connection its own weight — an enormous, easily-overfit pile. Right: a convolution learns one small kernel and slides it everywhere, so the <b>same</b> few weights explain the whole image.</figcaption>
+      </figure>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Parameter budget <small>Live · dense layer vs one convolution</small></div>
+      <div class="two">
+        <div>
+          <div class="slider"><div class="field"><label>Image size (n × n)</label><input type="range" id="psN" min="16" max="128" value="64" step="8"></div><output id="psNo" class="mono">64 × 64</output></div>
+          <div class="slider"><div class="field"><label>Output feature maps</label><input type="range" id="psM" min="8" max="128" value="32" step="8"></div><output id="psMo" class="mono">32</output></div>
+          <div class="slider"><div class="field"><label>Kernel size (k × k)</label><input type="range" id="psK" min="3" max="11" value="3" step="2"></div><output id="psKo" class="mono">3 × 3</output></div>
+        </div>
+        <div>
+          <div class="reads">
+            <div class="read bad"><i>Dense layer weights</i><b id="psDense">—</b></div>
+            <div class="read good"><i>Shared conv weights</i><b id="psConv">—</b></div>
+            <div class="read pri"><i>Fewer by</i><b id="psRatio">— <s>×</s></b></div>
+          </div>
+          <p style="font-size:13.5px;color:var(--ink2);margin-top:10px">Dense: every output pixel connects to every input pixel (n²·n²·m weights). Shared conv: just k²·m weights, reused at every position. The gap is often thousands of times — that's the regularizing power of sharing.</p>
+        </div>
+      </div>
+    </div>
+  
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">CNNs, RNNs, Transformers</span></div>
+      <p>Parameter sharing is the backbone of modern architectures. <b>CNNs</b> share one kernel across every image position; <b>RNNs</b> reuse the same weights at every timestep; and language models <b>tie the input embedding to the output softmax</b>, saving millions of parameters and often improving quality.</p>
+      <p><b>Siamese networks</b> (face verification, similarity search) share weights between their two towers so both inputs are embedded the same way.</p>
+      <div class="case"><b>Where it shows up:</b> weight tying in GPT-style models; shared conv kernels; twin-tower retrieval and verification systems.</div>
+    </div>
+  </section>
+
+  <!-- ================= 07 BAGGING ================= -->
+  <section class="leg" id="l7">
+    <div class="leg-head"><div class="leg-no">07</div><div>
+      <div class="leg-kicker">Average many models · §7.11</div><h2>Bagging &amp; Ensemble Methods</h2></div></div>
+
+    <p class="lede">Bagging (<b>b</b>ootstrap <b>agg</b>regat<b>ing</b>) trains several models on different resamples of the data and averages their predictions. Because each model makes <i>somewhat different</i> errors, averaging cancels the random part and keeps the signal. If the models' errors were perfectly independent, the ensemble's variance would drop by a full factor of k — the number of models.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> ask one friend to guess how many sweets are in a jar and they might be way off. Ask twenty friends and average their guesses — the too-high and too-low mistakes cancel out, and the average is usually surprisingly close. A crowd of rough guessers beats one guesser.</p>
+      <p>Bagging is a crowd of models. You make several models, each trained on a slightly different shuffle of the data, so they make <b>different</b> mistakes. Then you average their answers. The shared, correct part adds up, while the random mistakes cancel — so the team is steadier and more accurate than any single model. The one catch: it only helps if the models actually disagree; twenty identical guessers tell you nothing new.</p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Variance-reduction bench <small>Goodfellow's ensemble variance, made live</small></div>
+      <div class="two" style="grid-template-columns:1.1fr .9fr">
+        <div class="cv"><canvas id="bgCanvas" width="480" height="260"></canvas><div class="cv-cap">ensemble variance vs number of models k · dashed = uncorrelated ideal</div></div>
+        <div>
+          <div class="slider"><div class="field"><label>Number of models k</label><input type="range" id="bgK" min="1" max="40" value="10"></div><output id="bgKo" class="mono">10</output></div>
+          <div class="slider"><div class="field"><label>Error correlation ρ</label><input type="range" id="bgR" min="0" max="100" value="30"></div><output id="bgRo" class="mono">0.30</output></div>
+          <div class="reads">
+            <div class="read pri"><i>Ensemble variance</i><b id="bgVar">— <s>×v</s></b></div>
+            <div class="read good"><i>Variance cut</i><b id="bgCut">— <s>%</s></b></div>
+          </div>
+          <p style="font-size:12.5px;color:var(--ink2);margin-top:10px" class="mono">Var = v · [ 1/k + (k−1)/k · ρ ]</p>
+          <p style="font-size:13px;color:var(--ink2)">If ρ = 0 (fully independent errors) variance falls to v/k. If ρ = 1 (identical models) it never improves. Real ensembles live in between — diversity is everything.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panel-t">How bagging builds diversity</div>
+        <ul class="kl">
+          <li><b>Bootstrap samples = </b>each model trains on a resample (sampled with replacement), so it sees a different slice of data.</li>
+          <li><b>Different everything = </b>diversity also comes from different initializations, architectures, or feature subsets (random forests).</li>
+          <li><b>Average or vote = </b>regression averages outputs; classification votes or averages probabilities.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <div class="panel-t">Bagging vs boosting</div>
+        <ul class="kl">
+          <li><b>Bagging = </b>parallel, independent models; reduces <b>variance</b>; models are equals.</li>
+          <li><b>Boosting = </b>sequential; each model fixes the last one's mistakes; reduces <b>bias</b>, can build a strong learner from weak ones.</li>
+        </ul>
+        <div class="note"><b>Cost.</b> An ensemble of k models is k times the compute and memory at test time. Dropout, next, gets much of the benefit for almost free.</div>
+      </div>
+    </div>
+  
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">Random forests &amp; Kaggle</span></div>
+      <p>Bagging's most famous child is the <b>random forest</b> — hundreds of decision trees, each on a bootstrap sample and a random feature subset, then averaged. It's a default first model for <b>tabular data</b> because it's robust and needs little tuning.</p>
+      <p>At the top of <b>Kaggle competitions</b>, ensembling many diverse models (blending, stacking) is almost universal — diversity between models is what wins.</p>
+      <div class="case"><b>Where it shows up:</b> RandomForest / ExtraTrees for tabular data; model blending and stacking in competitions; snapshot ensembles in deep learning.</div>
+    </div>
+  </section>
+
+  <!-- ================= 08 DROPOUT ================= -->
+  <section class="leg" id="l8">
+    <div class="leg-head"><div class="leg-no">08</div><div>
+      <div class="leg-kicker">Bagging on a budget · §7.12</div><h2>Dropout</h2></div></div>
+
+    <p class="lede">Dropout randomly switches off a fraction of units on every training step, so each step trains a different <b>thinned</b> sub-network — but all sub-networks share their weights. It approximates bagging an astronomically large ensemble of networks at almost no extra cost. At test time you keep every unit and scale the weights, cheaply averaging the whole ensemble.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> a football team where, in every practice, a few random players sit out. Because you never know who'll be missing, <b>every</b> player has to learn to do a bit of everything — no one can slack off and rely on a single star. Come match day the whole team plays, and it's far more resilient.</p>
+      <p>Dropout benches random "neurons" on each training step, so the network can't lean on any one of them. Each step is like training a slightly different mini-network, and there are a mind-boggling number of possible mini-networks — but they all share the same weights, so it's basically free. When it's time to actually use the model, everyone plays at once, turned down a little so the totals stay fair.</p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Dropout sampler <small>Each resample trains a different thinned network</small></div>
+      <div class="two" style="grid-template-columns:1.2fr .8fr">
+        <div class="netwrap"><svg id="doSvg" viewBox="0 0 460 300" aria-label="A small neural network with some hidden units randomly dropped"></svg></div>
+        <div>
+          <div class="slider"><div class="field"><label>Dropout rate p</label><input type="range" id="doP" min="0" max="80" value="50"></div><output id="doPo" class="mono">0.50</output></div>
+          <div class="ctl"><button class="chip mag" id="doResample">Resample mask</button><button class="chip" id="doTest">Show test-time (all on)</button></div>
+          <div class="reads">
+            <div class="read good"><i>Hidden units kept</i><b id="doKept">—</b></div>
+            <div class="read pri"><i>Possible sub-networks</i><b id="doSub">—</b></div>
+          </div>
+          <p style="font-size:13px;color:var(--ink2);margin-top:10px" id="doMsg">—</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panel-t">Train vs test</div>
+        <ul class="kl">
+          <li><b>Training = </b>multiply each unit by a 0/1 Bernoulli mask (keep-probability 1 − p); a different mask every step.</li>
+          <li><b>Testing = </b>use all units, but scale activations so the expected total matches training. Inverted dropout does the scaling during training instead, leaving test-time untouched.</li>
+          <li><b>Weight sharing = </b>the 2ⁿ possible sub-networks all reuse one weight set, so training one trains many.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <div class="panel-t">Why it works</div>
+        <ul class="kl">
+          <li><b>Cheap bagging = </b>approximates averaging an exponential ensemble at the cost of one network.</li>
+          <li><b>No co-adaptation = </b>units can't rely on specific partners always being present, so each learns a robust, independently-useful feature.</li>
+          <li><b>Typical rates = </b>≈ 0.5 for hidden units, ≈ 0.2 for inputs; too high starves the network.</li>
+        </ul>
+      </div>
+    </div>
+  
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">Dense layers &amp; Transformers</span></div>
+      <p>Dropout is standard in dense layers and throughout Transformers — <b>BERT and GPT use dropout 0.1</b> in their attention and feed-forward blocks. It was the trick that let big fully-connected nets train without overfitting.</p>
+      <p>A neat second use: <b>Monte-Carlo dropout</b> leaves dropout on at test time and runs the model several times to get an <b>uncertainty estimate</b> — valuable in safety-critical settings.</p>
+      <div class="case"><b>Typical setting:</b> p ≈ 0.1 in Transformers, ≈ 0.5 in large dense layers, ≈ 0.2 on inputs.</div>
+    </div>
+  </section>
+
+  <!-- ================= 09 DIFFICULTY OF TRAINING ================= -->
+  <section class="leg" id="l9">
+    <div class="leg-head"><div class="leg-no">09</div><div>
+      <div class="leg-kicker">Why it's hard · Chapter 8</div><h2>The Difficulty of Training Deep Networks</h2></div></div>
+
+    <p class="lede">Every technique so far assumes you can actually train the network. Deep models make that assumption fragile. Stacking many layers multiplies gradients together, so they tend to <b>vanish</b> to nothing or <b>explode</b> to infinity; the loss surface is riddled with saddle points, plateaus, cliffs and ill-conditioned regions. Understanding these obstacles is what motivates good initialization, normalization and architecture.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> imagine a message whispered down a line of 50 people. If everyone whispers just a little softer, by the end there's <b>nothing</b> left to hear. If everyone shouts a little louder, by the end it's a deafening, garbled roar. Getting a clear message all the way through a long line is genuinely hard.</p>
+      <p>Training a deep network passes a "learning signal" back through many layers, and the same thing happens: the signal can fade to nothing (<b>vanishing gradients</b>) so the early layers barely learn, or blow up (<b>exploding gradients</b>) so training goes haywire. The loss landscape is also full of flat plains and tricky dips where progress stalls. That's why researchers invented careful starting values, normalization tricks, and shortcut connections — to keep the message clear from one end to the other.</p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Vanishing / exploding gradient bench <small>Live · a chain of L layers, each with gain g</small></div>
+      <div class="two" style="grid-template-columns:1.1fr .9fr">
+        <div class="cv"><canvas id="vgCanvas" width="480" height="260"></canvas><div class="cv-cap">signal strength as the gradient travels back through the layers (log scale)</div></div>
+        <div>
+          <div class="slider"><div class="field"><label>Number of layers L</label><input type="range" id="vgL" min="2" max="60" value="30"></div><output id="vgLo" class="mono">30</output></div>
+          <div class="slider"><div class="field"><label>Per-layer gain g</label><input type="range" id="vgG" min="50" max="150" value="90"></div><output id="vgGo" class="mono">0.90</output></div>
+          <div class="reads">
+            <div class="read"><i>Total factor gᴸ</i><b id="vgTot" style="font-size:19px">—</b></div>
+            <div class="read"><i>Regime</i><b id="vgReg" style="font-size:16px">—</b></div>
+          </div>
+          <p style="font-size:13px;color:var(--ink2);margin-top:10px" id="vgMsg">—</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panel-t">The obstacles</div>
+        <ul class="kl">
+          <li><b>Vanishing / exploding gradients = </b>products of many layer Jacobians shrink or blow up exponentially with depth.</li>
+          <li><b>Saddle points = </b>in high dimensions these vastly outnumber local minima; gradients near them are tiny, so progress crawls.</li>
+          <li><b>Plateaus &amp; cliffs = </b>long flat regions stall learning; sudden steep cliffs cause huge, destabilizing jumps.</li>
+          <li><b>Ill-conditioning = </b>very different curvatures in different directions make a single learning rate a poor fit everywhere.</li>
+          <li><b>Poor initialization = </b>bad starting scales put the network in the vanishing or exploding regime from step one.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <div class="panel-t">The fixes</div>
+        <ul class="kl">
+          <li><b>Careful init = </b>Xavier / He scaling keeps the per-layer gain near 1 so signals neither die nor blow up.</li>
+          <li><b>Normalization = </b>batch / layer norm re-centres and re-scales activations, smoothing the loss surface.</li>
+          <li><b>Residual connections = </b>skip paths let gradients flow directly, defeating vanishing in very deep nets.</li>
+          <li><b>Gradient clipping = </b>caps exploding gradients so a cliff can't wreck training.</li>
+          <li><b>Good optimizers = </b>momentum and adaptive methods (Adam) cope with saddles and ill-conditioning.</li>
+        </ul>
+        <div class="note"><b>The link back.</b> Set g = 1.0 in the bench: the signal holds steady all the way down. That's exactly what good initialization and normalization are engineered to achieve.</div>
+      </div>
+    </div>
+  
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">What made deep learning work</span></div>
+      <p>This section is the story of modern deep learning's breakthroughs. <b>ReLU + He initialization</b> kept signals alive through many layers; <b>Batch Normalization</b> (2015) smoothed the loss surface enough to make very deep nets trainable; <b>residual connections</b> let ResNets pass 100 layers by giving gradients a shortcut.</p>
+      <p>For recurrent and Transformer models, <b>gradient clipping</b> tames exploding gradients and <b>Adam</b> copes with saddle points and ill-conditioning. Training GPT- or ResNet-scale models means using essentially all of these at once.</p>
+      <div class="case"><b>The toolkit:</b> He/Xavier init · BatchNorm or LayerNorm · residual connections · gradient clipping · Adam/AdamW — the reason depth is trainable at all.</div>
+    </div>
+  </section>
+
+  <!-- ================= 10 QUIZ + GLOSSARY ================= -->
+  <section class="leg" id="quizsec">
+    <div class="leg-head"><div class="leg-no">QZ</div><div>
+      <div class="leg-kicker">Consolidate</div><h2>Revision &amp; Quiz</h2></div></div>
+
+    <p class="lede">Twelve checks across all nine methods. Pick an answer to see the reasoning.</p>
+
+    <div class="panel">
+      <div class="panel-t">Self-test <small><span id="score">0 / 12</span> correct</small></div>
+      <div id="quiz"></div>
+      <div class="ctl" style="margin-top:14px"><button class="chip mag" id="qReset">Reset quiz</button></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Likely long-answer questions</div>
+      <ul class="kl">
+        <li>What is dataset augmentation? Give label-preserving transforms for images and explain why a transform must preserve the label, with an example where flipping is illegal.</li>
+        <li>Describe the three places noise can be injected during training (input, weight, output) and the effect of each. Show why input noise resembles an L² penalty, and explain label smoothing.</li>
+        <li>Explain semi-supervised learning. State the cluster and manifold assumptions and describe how unlabeled data moves a decision boundary.</li>
+        <li>What is multitask learning? Draw the shared-trunk architecture and explain why the shared representation generalizes better.</li>
+        <li>Describe early stopping, including the validation set and patience. Explain in what sense it behaves like L² regularization.</li>
+        <li>Distinguish parameter tying from parameter sharing. Explain how convolutional networks use sharing and how it reduces parameters and encodes translation invariance.</li>
+        <li>Explain bagging. Derive the ensemble variance v[1/k + (k−1)ρ/k] and interpret the ρ = 0 and ρ = 1 cases. Contrast bagging with boosting.</li>
+        <li>Explain dropout: the training-time mask, the exponential ensemble of shared-weight sub-networks, and test-time weight scaling. Why does it prevent co-adaptation?</li>
+        <li>Why are deep networks hard to train? Discuss vanishing/exploding gradients, saddle points and ill-conditioning, and name techniques that address them.</li>
+      </ul>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Glossary <small>Click any dotted term anywhere on the page</small></div>
+      <input class="search" id="glossQ" type="search" placeholder="Filter terms — try 'bootstrap' or 'saddle'">
+      <div class="gloss no-abbr" id="gloss"></div>
+    </div>
+  </section>
+
+  <!-- ================= KEY TAKEAWAYS ================= -->
+  <section class="leg" id="l10">
+    <div class="leg-head"><div class="leg-no">SUM</div><div>
+      <div class="leg-kicker">Summary · the toolkit at a glance</div><h2>Key Takeaways</h2></div></div>
+
+    <div class="headline">
+      <h3>If you remember only one thing</h3>
+      <p>Regularization is any move that trades a little training performance for better generalization. Beyond shrinking weights you can <b>add data</b> (augmentation), <b>add doubt</b> (noise, dropout, early stopping), <b>add structure</b> (sharing, multitask, semi-supervised), or <b>add models</b> (bagging). And none of it matters unless you can get the gradients to flow — which is why <b>training deep nets</b> is its own hard problem.</p>
+    </div>
+
+    <div class="tk">
+      <div class="tk-item"><i>01</i><div><h4>Augmentation manufactures data</h4>
+        <p>Apply label-preserving transforms to expand the training set and teach invariances for free. Never augment validation or test.</p></div></div>
+      <div class="tk-item"><i>02</i><div><h4>Noise toughens models</h4>
+        <p>Input noise ≈ weight decay; weight noise favours flat minima; label smoothing curbs over-confidence.</p></div></div>
+      <div class="tk-item"><i>03</i><div><h4>Unlabeled data is free information</h4>
+        <p>Semi-supervised learning puts the boundary in low-density gaps between clusters, using cheap unlabeled data to break ties.</p></div></div>
+      <div class="tk-item"><i>04</i><div><h4>Sharing tasks shares features</h4>
+        <p>Multitask learning pools data into a shared trunk; the representation must serve all tasks, so it generalizes better.</p></div></div>
+      <div class="tk-item"><i>05</i><div><h4>Early stopping is free L²</h4>
+        <p>Keep the weights from the validation minimum. Limiting training steps limits weight travel — like a weaker leash the longer you train.</p></div></div>
+      <div class="tk-item"><i>06</i><div><h4>Sharing beats tying beats nothing</h4>
+        <p>Tying nudges weights close (‖w_A−w_B‖²); sharing forces them equal. Convolutions share one kernel everywhere, slashing parameters.</p></div></div>
+      <div class="tk-item"><i>07</i><div><h4>Bagging averages away variance</h4>
+        <p>Diverse models on bootstrap resamples; variance falls toward v/k only if errors are uncorrelated. Diversity is the whole point.</p></div></div>
+      <div class="tk-item"><i>08</i><div><h4>Dropout is cheap bagging</h4>
+        <p>Random masks train 2ⁿ weight-sharing sub-networks; scale at test time. Prevents co-adaptation for the cost of one network.</p></div></div>
+      <div class="tk-item"><i>09</i><div><h4>Depth fights back</h4>
+        <p>Gradients vanish or explode, saddles and ill-conditioning stall progress. Good init, normalization and residuals keep signals alive.</p></div></div>
+    </div>
+
+    <div class="foot no-abbr">
+      <span>CHAPTER 7.4–7.12 &amp; 8 · REGULARIZATION TECHNIQUES &amp; TRAINING DEEP NETS</span>
+      <span>9 METHODS · 9 LIVE LABS · ALL COMPUTED IN YOUR BROWSER</span>
+      <span>PAIR WITH VOLUME I ON PARAMETER PENALTIES</span>
+    </div>
+  </section>
+
+  </main>
+</div>
+<script>
+(function(){
+"use strict";
+const $=(s,r)=>(r||document).querySelector(s), $$=(s,r)=>[...(r||document).querySelectorAll(s)];
+const fmt=(n,d)=>Number(n).toFixed(d===undefined?1:d);
+const mulberry=a=>function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+function fmtBig(x){x=Math.round(x);if(x>=1e12)return fmt(x/1e12,1)+" T";if(x>=1e9)return fmt(x/1e9,1)+" B";if(x>=1e6)return fmt(x/1e6,1)+" M";if(x>=1e3)return fmt(x/1e3,1)+" k";return String(x);}
+
+/* ---------- hero waypoints ---------- */
+const wpPts=[[120,138],[200,126],[290,120],[380,118],[470,119],[560,130],[650,145],[740,158],[840,168]];
+const wpNames=["Augmentation","Noise","Semi-supervised","Multitask","Early stopping","Sharing","Bagging","Dropout","Deep-net difficulty"];
+const NS="http://www.w3.org/2000/svg", wpsG=$("#wps");
+wpPts.forEach((p,i)=>{
+  const g=document.createElementNS(NS,"g");
+  g.setAttribute("class","wp"); g.setAttribute("tabindex","0"); g.setAttribute("role","link");
+  g.setAttribute("aria-label","Method "+(i+1)+": "+wpNames[i]);
+  g.innerHTML='<circle class="hit" cx="'+p[0]+'" cy="'+p[1]+'" r="12" fill="#F7F8F3" fill-opacity=".01"/>'+
+    '<circle cx="'+p[0]+'" cy="'+p[1]+'" r="6.5" fill="#F7F8F3" stroke="#14171B" stroke-width="1.6"/>'+
+    '<circle cx="'+p[0]+'" cy="'+p[1]+'" r="2.4" fill="#6C30D9"/>'+
+    '<text x="'+p[0]+'" y="'+(p[1]-13)+'" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9.5" fill="#14171B">'+String(i+1).padStart(2,"0")+'</text>';
+  const go=()=>{const el=document.getElementById("l"+(i+1)); if(el) el.scrollIntoView({block:"start"});};
+  g.addEventListener("click",go);
+  g.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();go();}});
+  wpsG.appendChild(g);
+});
+
+/* ---------- rail + progress (href-mapped, robust to extra sections) ---------- */
+const links=$$("#rail a");
+const secs=links.map(a=>document.querySelector(a.getAttribute("href")));
+function onScroll(){
+  const y=window.scrollY+140; let idx=0;
+  secs.forEach((s,i)=>{ if(s&&s.offsetTop<=y) idx=i; });
+  links.forEach((a,i)=>a.classList.toggle("on",i===idx));
+  const d=document.documentElement;
+  const p=Math.min(100,Math.max(0,(window.scrollY/(d.scrollHeight-d.clientHeight))*100));
+  $("#progFill").style.width=p+"%"; $("#progTxt").textContent=Math.round(p)+"%";
+}
+window.addEventListener("scroll",onScroll,{passive:true}); onScroll();
+
+const railEl=$("#rail"),hamEl=$("#ham"),railBg=$("#railBg");
+function railSet(open){railEl.classList.toggle("open",open);hamEl.classList.toggle("open",open);railBg.classList.toggle("on",open);
+  hamEl.setAttribute("aria-expanded",open?"true":"false");document.body.style.overflow=open?"hidden":"";}
+hamEl.addEventListener("click",()=>railSet(!railEl.classList.contains("open")));
+$("#railX").addEventListener("click",()=>railSet(false));
+railBg.addEventListener("click",()=>railSet(false));
+document.addEventListener("keydown",e=>{if(e.key==="Escape")railSet(false);});
+links.forEach(a=>a.addEventListener("click",()=>railSet(false)));
+
+/* ================= 01 augmentation ================= */
+(function(){
+  function drawScene(cx,cw,ch,o){
+    cx.save(); cx.fillStyle="#F7F8F3"; cx.fillRect(0,0,cw,ch);
+    cx.translate(cw/2+(o.dx||0),ch/2+(o.dy||0));
+    if(o.flip)cx.scale(-1,1);
+    cx.rotate(o.rot||0);
+    const s=(o.scale||1); cx.scale(s,s); cx.rotate(-Math.PI/4);
+    const L=cw*0.30,wsh=cw*0.10,hd=cw*0.20,hl=cw*0.16;
+    cx.fillStyle="#6C30D9"; cx.beginPath();
+    cx.moveTo(-L,-wsh/2);cx.lineTo(L-hl,-wsh/2);cx.lineTo(L-hl,-hd/2);cx.lineTo(L,0);
+    cx.lineTo(L-hl,hd/2);cx.lineTo(L-hl,wsh/2);cx.lineTo(-L,wsh/2);cx.closePath();cx.fill();
+    cx.fillStyle="#0F7C87"; cx.fillRect(-L-cw*0.07,-cw*0.045,cw*0.07,cw*0.09);
+    cx.restore();
+    if(o.bright||o.noise){const im=cx.getImageData(0,0,cw,ch),d=im.data,rnd=mulberry(o.seed||1),br=o.bright||0,nz=o.noise||0;
+      for(let i=0;i<d.length;i+=4){const n=nz?(rnd()-0.5)*nz*2:0; for(let c=0;c<3;c++)d[i+c]=Math.max(0,Math.min(255,d[i+c]+br+n));}
+      cx.putImageData(im,0,0);}
+  }
+  const base=$("#augBase").getContext("2d");
+  $("#augGrid").innerHTML=Array.from({length:8},()=>'<div class="cv"><canvas width="90" height="90"></canvas></div>').join("");
+  const cells=$$("#augGrid canvas").map(cv=>cv.getContext("2d"));
+  let seeds=Array.from({length:8},()=>(Math.random()*1e9)|0), flipOn=false;
+  function R(){
+    const maxRot=(+$("#augRot").value)*Math.PI/180, maxSh=+$("#augSh").value, maxBr=+$("#augBr").value, nz=(+$("#augNo").value)*2.55;
+    $("#augRoto").textContent="± "+$("#augRot").value+"°"; $("#augSho").textContent="± "+$("#augSh").value+" px";
+    $("#augBro").textContent="± "+$("#augBr").value; $("#augNoo").textContent=$("#augNo").value+"%";
+    drawScene(base,150,150,{});
+    cells.forEach((cx,i)=>{const rnd=mulberry(seeds[i]);
+      drawScene(cx,90,90,{rot:(rnd()*2-1)*maxRot, dx:(rnd()*2-1)*maxSh*0.55, dy:(rnd()*2-1)*maxSh*0.55,
+        scale:0.82+rnd()*0.36, flip:flipOn&&rnd()<0.5, bright:(rnd()*2-1)*maxBr, noise:nz, seed:seeds[i]+7});});
+  }
+  ["augRot","augSh","augBr","augNo"].forEach(id=>$("#"+id).addEventListener("input",R));
+  $("#augShuffle").addEventListener("click",()=>{seeds=seeds.map(()=>(Math.random()*1e9)|0);R();});
+  $("#augFlip").addEventListener("click",e=>{flipOn=!flipOn;e.target.classList.toggle("on",flipOn);
+    e.target.textContent="Allow mirror flip: "+(flipOn?"ON":"OFF");R();});
+  R();
+})();
+
+/* ================= 02 noise robustness ================= */
+(function(){
+  function nrR(){const s=(+$("#nrSig").value)*0.01; $("#nrSigo").textContent=fmt(s,2); $("#nrAlpha").textContent=fmt(s,2);
+    $("#nrEff").textContent=s<0.05?"almost none":s<0.5?"light shrink":s<1.0?"moderate shrink":"strong shrink";}
+  $("#nrSig").addEventListener("input",nrR); nrR();
+  const K=5,tc=0;
+  function lsR(){const e=(+$("#lsEps").value)*0.01; $("#lsEpso").textContent=fmt(e,2);
+    const tv=1-e+e/K, ov=e/K; let rows="";
+    for(let i=0;i<K;i++){const v=(i===tc)?tv:ov, isT=(i===tc);
+      rows+='<div class="tvbar"><span>class '+i+(isT?" ★":"")+'</span><div class="tr"><div class="fl'+(isT?"":" pri")+'" style="width:'+fmt(v*100,0)+'%"></div></div><b>'+fmt(v,2)+'</b></div>';}
+    $("#lsBars").innerHTML=rows;}
+  $("#lsEps").addEventListener("input",lsR); lsR();
+})();
+
+/* ================= 03 semi-supervised ================= */
+(function(){
+  const cv=$("#ssCanvas"),cx=cv.getContext("2d"),cw=cv.width,ch=cv.height;
+  const X=x=>15+(x+3)/6*(cw-30), Y=y=>(ch-15)-(y+2.4)/4.8*(ch-30);
+  const rnd=mulberry(4242);
+  const cA=[-1.15,-0.15], cB=[1.15,0.15], A=[],B=[];
+  function gauss(){let u=0,v=0;while(u===0)u=rnd();while(v===0)v=rnd();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+  for(let i=0;i<60;i++){A.push([cA[0]+gauss()*0.42,cA[1]+gauss()*0.42]);B.push([cB[0]+gauss()*0.42,cB[1]+gauss()*0.42]);}
+  const meanAll=pts=>pts.reduce((m,p)=>[m[0]+p[0]/pts.length,m[1]+p[1]/pts.length],[0,0]);
+  let useUnlab=false;
+  function boundary(k){
+    let ca,cb;
+    if(useUnlab){ca=meanAll(A);cb=meanAll(B);}
+    else{ca=meanAll(A.slice(0,k));cb=meanAll(B.slice(0,k));}
+    return [ca,cb];
+  }
+  function R(){
+    const k=+$("#ssK").value; $("#ssKo").textContent=k;
+    cx.clearRect(0,0,cw,ch);cx.fillStyle="#fff";cx.fillRect(0,0,cw,ch);
+    cx.strokeStyle="#eceee9";for(let gx=-3;gx<=3;gx++){cx.beginPath();cx.moveTo(X(gx),0);cx.lineTo(X(gx),ch);cx.stroke();}
+    // unlabeled dots (grey when used, else hidden-ish faint)
+    const uCol=useUnlab?"rgba(75,81,90,.5)":"rgba(75,81,90,.14)";
+    [...A,...B].forEach(p=>{cx.fillStyle=uCol;cx.beginPath();cx.arc(X(p[0]),Y(p[1]),2.4,0,7);cx.fill();});
+    // labeled points on top
+    for(let i=0;i<k;i++){
+      cx.fillStyle="#0F7C87";cx.beginPath();cx.arc(X(A[i][0]),Y(A[i][1]),5.5,0,7);cx.fill();
+      cx.strokeStyle="#fff";cx.lineWidth=1.5;cx.stroke();
+      cx.fillStyle="#C81C6E";cx.beginPath();cx.arc(X(B[i][0]),Y(B[i][1]),5.5,0,7);cx.fill();cx.stroke();
+    }
+    // boundary = perpendicular bisector of the two centers
+    const [ca,cb]=boundary(k), m=[(ca[0]+cb[0])/2,(ca[1]+cb[1])/2], dir=[cb[0]-ca[0],cb[1]-ca[1]];
+    cx.strokeStyle="#6C30D9";cx.lineWidth=2.4;cx.setLineDash([]);
+    if(Math.abs(dir[1])>1e-6){const xa=-3,xb=3,ya=m[1]-dir[0]/dir[1]*(xa-m[0]),yb=m[1]-dir[0]/dir[1]*(xb-m[0]);
+      cx.beginPath();cx.moveTo(X(xa),Y(ya));cx.lineTo(X(xb),Y(yb));cx.stroke();}
+    else{cx.beginPath();cx.moveTo(X(m[0]),0);cx.lineTo(X(m[0]),ch);cx.stroke();}
+    $("#ssNL").textContent=(2*k);
+    $("#ssNU").textContent=useUnlab?String(A.length+B.length):"0";
+    $("#ssMsg").textContent=useUnlab
+      ? "With the unlabeled cloud, the boundary follows the empty valley between the two clusters — stable even with few labels."
+      : "With only "+(2*k)+" labeled points, the boundary is set by their average alone — it wobbles and can miss the true gap.";
+  }
+  $("#ssK").addEventListener("input",R);
+  $("#ssOff").addEventListener("click",()=>{useUnlab=false;$("#ssOff").classList.add("on");$("#ssOn").classList.remove("on");R();});
+  $("#ssOn").addEventListener("click",()=>{useUnlab=true;$("#ssOn").classList.add("on");$("#ssOff").classList.remove("on");R();});
+  R();
+})();
+
+/* ================= 04 multitask ================= */
+(function(){
+  // static shared-trunk figure
+  const cols=[70,190,310,430], svg=$("#mtSvg"); let g="";
+  function nodes(x,ys,col){return ys.map(y=>'<circle cx="'+x+'" cy="'+y+'" r="9" fill="'+col+'"/>').join("");}
+  const inY=[70,110,150,190], s1=[60,110,160,200], s2=[70,120,170];
+  // edges input->s1->s2 (shared, violet)
+  inY.forEach(a=>s1.forEach(b=>g+='<line x1="'+cols[0]+'" y1="'+a+'" x2="'+cols[1]+'" y2="'+b+'" stroke="#6C30D9" stroke-opacity=".18"/>'));
+  s1.forEach(a=>s2.forEach(b=>g+='<line x1="'+cols[1]+'" y1="'+a+'" x2="'+cols[2]+'" y2="'+b+'" stroke="#6C30D9" stroke-opacity=".22"/>'));
+  // heads (teal): 3 heads each 2 nodes
+  const heads=[[40,70],[110,140],[180,210]];
+  heads.forEach((hy,i)=>{ s2.forEach(a=>hy.forEach(b=>g+='<line x1="'+cols[2]+'" y1="'+a+'" x2="'+cols[3]+'" y2="'+b+'" stroke="#0F7C87" stroke-opacity=".3"/>'));});
+  g+=nodes(cols[0],inY,"#14171B")+nodes(cols[1],s1,"#6C30D9")+nodes(cols[2],s2,"#6C30D9");
+  heads.forEach(hy=>g+=nodes(cols[3],hy,"#0F7C87"));
+  g+='<text x="'+cols[0]+'" y="230" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9" fill="#4B515A">input</text>';
+  g+='<text x="'+((cols[1]+cols[2])/2)+'" y="230" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9" fill="#6C30D9">SHARED TRUNK</text>';
+  g+='<text x="'+cols[3]+'" y="30" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9" fill="#0F7C87">task heads</text>';
+  svg.innerHTML=g;
+  function R(){const k=+$("#mtK").value; $("#mtKo").textContent=k; $("#mtData").innerHTML=k+" <s>×</s>";
+    const T=100,h=8, shared=T+k*h, separate=k*(T+h), saved=(1-shared/separate)*100;
+    $("#mtParam").innerHTML=fmt(Math.max(0,saved),0)+" <s>%</s>";}
+  $("#mtK").addEventListener("input",R); R();
+})();
+
+/* ================= 05 early stopping ================= */
+(function(){
+  const cv=$("#esCanvas"),cx=cv.getContext("2d"),cw=cv.width,ch=cv.height, T=100;
+  const tr=[],va=[];
+  for(let t=1;t<=T;t++){tr.push(0.9*Math.exp(-t/18)+0.06); va.push(0.55*Math.exp(-t/14)+0.12+0.0016*t);}
+  let best=1,bv=1e9; va.forEach((v,i)=>{if(v<bv){bv=v;best=i+1;}});
+  const ymax=0.72, X=t=>40+(t-1)/(T-1)*(cw-55), Y=e=>(ch-30)-e/ymax*(ch-45);
+  function curve(arr,col){cx.strokeStyle=col;cx.lineWidth=2.2;cx.beginPath();arr.forEach((v,i)=>{const px=X(i+1),py=Y(v);i?cx.lineTo(px,py):cx.moveTo(px,py);});cx.stroke();}
+  function R(){
+    const st=+$("#esT").value; $("#esTo").textContent=st;
+    cx.clearRect(0,0,cw,ch);cx.fillStyle="#fff";cx.fillRect(0,0,cw,ch);
+    cx.strokeStyle="#c9ccc4";cx.beginPath();cx.moveTo(40,10);cx.lineTo(40,ch-30);cx.lineTo(cw-8,ch-30);cx.stroke();
+    cx.fillStyle="#4B515A";cx.font="9px 'IBM Plex Mono',monospace";cx.fillText("error",6,18);cx.fillText("epoch →",cw-52,ch-16);
+    // overfit region shading after best
+    cx.fillStyle="rgba(200,28,110,.06)";cx.fillRect(X(best),10,X(T)-X(best),ch-40);
+    curve(tr,"#0F7C87"); curve(va,"#C81C6E");
+    // best marker
+    cx.fillStyle="#C81C6E";cx.beginPath();cx.arc(X(best),Y(bv),4,0,7);cx.fill();
+    // stop line
+    cx.strokeStyle="#B27412";cx.lineWidth=1.6;cx.setLineDash([5,4]);cx.beginPath();cx.moveTo(X(st),10);cx.lineTo(X(st),ch-30);cx.stroke();cx.setLineDash([]);
+    $("#esValStop").textContent=fmt(va[st-1],3);
+    $("#esValEnd").textContent=fmt(va[T-1],3);
+    $("#esBest").textContent=best;
+    let msg;
+    if(st>best+6)msg="You trained too long — validation error climbed from "+fmt(bv,3)+" (best) to "+fmt(va[st-1],3)+". That rise is overfitting.";
+    else if(st<best-6)msg="You stopped too early — a little more training still lowers validation error toward "+fmt(bv,3)+".";
+    else msg="Nicely placed — you're near the validation minimum at epoch "+best+".";
+    $("#esMsg").textContent=msg;
+  }
+  $("#esT").addEventListener("input",R);
+  $("#esOpt").addEventListener("click",()=>{$("#esT").value=best;R();});
+  R();
+})();
+
+/* ================= 06 parameter sharing ================= */
+(function(){
+  // static figure
+  const svg=$("#psSvg"); let g='';
+  // left: dense (grid 4x4 -> 3 outputs, many lines)
+  const gx0=40,gy0=40,cell=26; const inNodes=[];
+  for(let r=0;r<4;r++)for(let c=0;c<4;c++){const x=gx0+c*cell,y=gy0+r*cell;inNodes.push([x,y]);}
+  const outs=[[210,60],[210,100],[210,140]];
+  inNodes.forEach(p=>outs.forEach(o=>g+='<line x1="'+p[0]+'" y1="'+p[1]+'" x2="'+o[0]+'" y2="'+o[1]+'" stroke="#C81C6E" stroke-opacity=".14"/>'));
+  inNodes.forEach(p=>g+='<rect x="'+(p[0]-6)+'" y="'+(p[1]-6)+'" width="12" height="12" fill="#14171B" opacity=".8"/>');
+  outs.forEach(o=>g+='<circle cx="'+o[0]+'" cy="'+o[1]+'" r="8" fill="#C81C6E"/>');
+  g+='<text x="120" y="185" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9.5" fill="#C81C6E">DENSE · a unique weight per line</text>';
+  // right: one shared kernel slid to 3 positions
+  const rx0=370,ry0=40; const grid=[];
+  for(let r=0;r<4;r++)for(let c=0;c<4;c++){const x=rx0+c*cell,y=ry0+r*cell;grid.push([x,y]);g+='<rect x="'+(x-6)+'" y="'+(y-6)+'" width="12" height="12" fill="#14171B" opacity=".2"/>';}
+  const ker=[[0,0],[1,1],[2,0]]; const kcol="#6C30D9";
+  ker.forEach(k=>{const x=rx0+k[0]*cell-9,y=ry0+k[1]*cell-9;g+='<rect x="'+x+'" y="'+y+'" width="'+(2*cell)+'" height="'+(2*cell)+'" fill="none" stroke="'+kcol+'" stroke-width="2"/>';});
+  g+='<text x="490" y="185" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9.5" fill="#6C30D9">CONV · ONE kernel reused everywhere</text>';
+  svg.innerHTML=g;
+  function R(){const n=+$("#psN").value,m=+$("#psM").value,k=+$("#psK").value;
+    $("#psNo").textContent=n+" × "+n;$("#psMo").textContent=m;$("#psKo").textContent=k+" × "+k;
+    const dense=Math.pow(n,4)*m, conv=k*k*m;
+    $("#psDense").textContent=fmtBig(dense);$("#psConv").textContent=fmtBig(conv);
+    $("#psRatio").innerHTML=fmtBig(dense/conv)+" <s>×</s>";}
+  ["psN","psM","psK"].forEach(id=>$("#"+id).addEventListener("input",R)); R();
+})();
+
+/* ================= 07 bagging ================= */
+(function(){
+  const cv=$("#bgCanvas"),cx=cv.getContext("2d"),cw=cv.width,ch=cv.height, KM=40;
+  const X=k=>40+(k-1)/(KM-1)*(cw-55), Y=v=>(ch-28)-v*(ch-45);
+  function varOf(k,r){return 1/k+(k-1)/k*r;}
+  function R(){
+    const k=+$("#bgK").value, r=(+$("#bgR").value)*0.01;
+    $("#bgKo").textContent=k; $("#bgRo").textContent=fmt(r,2);
+    const v=varOf(k,r); $("#bgVar").innerHTML=fmt(v,2)+" <s>×v</s>"; $("#bgCut").innerHTML=fmt((1-v)*100,0)+" <s>%</s>";
+    cx.clearRect(0,0,cw,ch);cx.fillStyle="#fff";cx.fillRect(0,0,cw,ch);
+    cx.strokeStyle="#c9ccc4";cx.beginPath();cx.moveTo(40,10);cx.lineTo(40,ch-28);cx.lineTo(cw-8,ch-28);cx.stroke();
+    cx.fillStyle="#4B515A";cx.font="9px 'IBM Plex Mono',monospace";cx.fillText("variance",6,16);cx.fillText("models k →",cw-64,ch-14);
+    // ideal ρ=0 (1/k) dashed
+    cx.strokeStyle="#b7bab2";cx.setLineDash([5,4]);cx.lineWidth=1.5;cx.beginPath();
+    for(let kk=1;kk<=KM;kk++){const px=X(kk),py=Y(1/kk);kk===1?cx.moveTo(px,py):cx.lineTo(px,py);}cx.stroke();cx.setLineDash([]);
+    // current ρ
+    cx.strokeStyle="#6C30D9";cx.lineWidth=2.4;cx.beginPath();
+    for(let kk=1;kk<=KM;kk++){const px=X(kk),py=Y(varOf(kk,r));kk===1?cx.moveTo(px,py):cx.lineTo(px,py);}cx.stroke();
+    // floor line at ρ
+    cx.strokeStyle="rgba(200,28,110,.5)";cx.setLineDash([3,3]);cx.beginPath();cx.moveTo(40,Y(r));cx.lineTo(cw-8,Y(r));cx.stroke();cx.setLineDash([]);
+    cx.fillStyle="#C81C6E";cx.fillText("variance floor = ρ",cw-150,Y(r)-4);
+    cx.fillStyle="#6C30D9";cx.beginPath();cx.arc(X(k),Y(v),4,0,7);cx.fill();
+  }
+  ["bgK","bgR"].forEach(id=>$("#"+id).addEventListener("input",R)); R();
+})();
+
+/* ================= 08 dropout ================= */
+(function(){
+  const svg=$("#doSvg"), cols=[70,190,310,420], layers=[4,6,6,2];
+  const ys=layers.map(n=>{const arr=[],gap=210/(n+1);for(let i=0;i<n;i++)arr.push(45+gap*(i+1));return arr;});
+  let mask=[ys[1].map(()=>true),ys[2].map(()=>true)], testMode=false;
+  function active(li,i){ if(li===0||li===3)return true; if(testMode)return true; return mask[li-1][i]; }
+  function draw(){
+    let g='<rect x="0" y="0" width="460" height="300" fill="#fff"/>';
+    for(let l=0;l<3;l++){ys[l].forEach((ya,ia)=>{ys[l+1].forEach((yb,ib)=>{
+      if(active(l,ia)&&active(l+1,ib))
+        g+='<line x1="'+cols[l]+'" y1="'+ya+'" x2="'+cols[l+1]+'" y2="'+yb+'" stroke="#6C30D9" stroke-opacity="'+(testMode?".14":".25")+'"/>';
+    });});}
+    layers.forEach((n,l)=>ys[l].forEach((y,i)=>{
+      const on=active(l,i), col=(l===0)?"#14171B":(l===3)?"#0F7C87":"#6C30D9";
+      if(on){g+='<circle cx="'+cols[l]+'" cy="'+y+'" r="10" fill="'+col+'"/>';}
+      else{g+='<circle cx="'+cols[l]+'" cy="'+y+'" r="10" fill="#fff" stroke="#c9ccc4" stroke-width="1.5"/>';
+        g+='<line x1="'+(cols[l]-6)+'" y1="'+(y-6)+'" x2="'+(cols[l]+6)+'" y2="'+(y+6)+'" stroke="#C81C6E" stroke-width="1.6"/><line x1="'+(cols[l]+6)+'" y1="'+(y-6)+'" x2="'+(cols[l]-6)+'" y2="'+(y+6)+'" stroke="#C81C6E" stroke-width="1.6"/>';}
+    }));
+    g+='<text x="70" y="290" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="8.5" fill="#4B515A">input</text>';
+    g+='<text x="250" y="290" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="8.5" fill="#6C30D9">hidden (droppable)</text>';
+    g+='<text x="420" y="290" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="8.5" fill="#0F7C87">output</text>';
+    svg.innerHTML=g;
+  }
+  function resample(){const p=(+$("#doP").value)*0.01; const rnd=Math.random;
+    mask=[ys[1].map(()=>rnd()>=p),ys[2].map(()=>rnd()>=p)]; testMode=false; render();}
+  function render(){
+    const p=(+$("#doP").value)*0.01; $("#doPo").textContent=fmt(p,2);
+    const nH=ys[1].length+ys[2].length;
+    const kept=testMode?nH:(mask[0].filter(Boolean).length+mask[1].filter(Boolean).length);
+    $("#doKept").textContent=kept+" / "+nH;
+    $("#doSub").textContent=fmtBig(Math.pow(2,nH));
+    $("#doMsg").textContent=testMode
+      ? "Test time: every unit is on, and outputs are scaled by (1 − p) so the totals match training's average."
+      : "Training step: units marked ✗ are switched off; only this thinned sub-network is trained right now — but its weights are shared with all the others.";
+    draw();
+  }
+  $("#doP").addEventListener("input",resample);
+  $("#doResample").addEventListener("click",resample);
+  $("#doTest").addEventListener("click",e=>{testMode=!testMode;e.target.classList.toggle("on",testMode);
+    e.target.textContent=testMode?"Show a training mask":"Show test-time (all on)"; render();});
+  resample();
+})();
+
+/* ================= 09 vanishing/exploding gradient ================= */
+(function(){
+  const cv=$("#vgCanvas"),cx=cv.getContext("2d"),cw=cv.width,ch=cv.height;
+  function R(){
+    const L=+$("#vgL").value, g=(+$("#vgG").value)*0.01;
+    $("#vgLo").textContent=L; $("#vgGo").textContent=fmt(g,2);
+    const tot=Math.pow(g,L);
+    $("#vgTot").textContent = tot>=1e4||tot<1e-3 ? tot.toExponential(1) : fmt(tot,tot<1?3:1);
+    let reg = tot<0.01?"vanishing":tot>100?"exploding":"stable";
+    const regEl=$("#vgReg"); regEl.textContent=reg;
+    regEl.parentElement.classList.remove("bad","good","warn");
+    regEl.parentElement.classList.add(reg==="stable"?"good":reg==="vanishing"?"bad":"warn");
+    // plot log10(signal) vs depth
+    cx.clearRect(0,0,cw,ch);cx.fillStyle="#fff";cx.fillRect(0,0,cw,ch);
+    const X=d=>40+d/L*(cw-55), lo=-6,hi=6, Y=v=>{v=Math.max(lo,Math.min(hi,v));return (ch-24)-(v-lo)/(hi-lo)*(ch-40);};
+    cx.strokeStyle="#c9ccc4";cx.beginPath();cx.moveTo(40,10);cx.lineTo(40,ch-24);cx.lineTo(cw-8,ch-24);cx.stroke();
+    // zero line (signal = 1)
+    cx.strokeStyle="rgba(15,124,135,.5)";cx.setLineDash([4,3]);cx.beginPath();cx.moveTo(40,Y(0));cx.lineTo(cw-8,Y(0));cx.stroke();cx.setLineDash([]);
+    cx.fillStyle="#4B515A";cx.font="9px 'IBM Plex Mono',monospace";cx.fillText("10^6",6,Y(6)+3);cx.fillText("1",26,Y(0)+3);cx.fillText("10^-6",4,Y(-6)+3);cx.fillText("depth →",cw-56,ch-10);
+    const lg=Math.log10(g);
+    cx.strokeStyle="#6C30D9";cx.lineWidth=2.4;cx.beginPath();
+    for(let d=0;d<=L;d++){const px=X(d),py=Y(d*lg);d?cx.lineTo(px,py):cx.moveTo(px,py);}cx.stroke();
+    cx.fillStyle="#6C30D9";cx.beginPath();cx.arc(X(L),Y(L*lg),4,0,7);cx.fill();
+    $("#vgMsg").textContent = reg==="stable"
+      ? "Signal holds its scale across all "+L+" layers — this is what good initialization and normalization aim for (g ≈ 1)."
+      : reg==="vanishing"
+      ? "After "+L+" layers the signal has shrunk to almost nothing, so early layers barely learn. Raise g toward 1, or use residual connections."
+      : "After "+L+" layers the signal has blown up — training will be unstable. Lower g toward 1, or clip gradients.";
+  }
+  ["vgL","vgG"].forEach(id=>$("#"+id).addEventListener("input",R)); R();
+})();
+
+/* ================= quiz ================= */
+const qs=[
+ {q:"Which transform is NOT label-preserving for a 'left arrow vs right arrow' classifier?",o:["Small brightness change","Adding a little noise","Horizontal (mirror) flip","A tiny shift"],a:2,e:"A horizontal flip turns a left arrow into a right arrow, so it changes the label. Only apply transforms your classifier should be blind to."},
+ {q:"Adding small Gaussian noise to the inputs of a linear model is roughly equivalent to…",o:["An L¹ penalty","An L² (weight-decay) penalty","Dropout","Early stopping"],a:1,e:"Averaging over input noise of variance σ² adds a term α‖w‖² with α = σ² — it behaves like weight decay."},
+ {q:"Label smoothing replaces a hard target like (1, 0, 0) with…",o:["A larger one-hot vector","A softened vector like (0.9, 0.05, 0.05)","A random vector","The model's own prediction"],a:1,e:"It moves a little probability mass onto the other classes, so the model never chases the impossible certainty of exact 0 and 1 — curbing over-confidence."},
+ {q:"In semi-supervised learning, the unlabeled data is used to…",o:["Directly provide missing labels","Reveal cluster structure so the boundary sits in low-density gaps","Increase the learning rate","Replace the validation set"],a:1,e:"Under the cluster assumption, boundaries should run through low-density regions between clusters — the unlabeled data shows where those gaps are."},
+ {q:"In multitask learning, the shared lower layers generalize better mainly because…",o:["They have more parameters","They are pressured to be useful for every task, pooling all tasks' data","They use a special activation","They are trained last"],a:1,e:"A representation that must serve several tasks, using data from all of them, can't overfit to one task's quirks — that shared pressure is the regularizer."},
+ {q:"Early stopping keeps the weights from the epoch where…",o:["Training error is lowest","Validation error is lowest","The gradient is largest","Training just began"],a:1,e:"You save the checkpoint at the validation minimum. Limiting how long you train also limits how far weights travel from their small init — behaving like L²."},
+ {q:"Parameter sharing (as in convolutional networks) differs from parameter tying because sharing…",o:["Only penalizes the difference between weights","Forces the weights to be exactly equal and reused","Uses more parameters","Applies only to biases"],a:1,e:"Tying adds a penalty ‖w_A−w_B‖² to keep weights close; sharing forces them identical — one kernel reused everywhere, slashing parameters and encoding translation invariance."},
+ {q:"For a bagged ensemble of k models, the variance is v[1/k + (k−1)ρ/k]. If the models' errors are perfectly correlated (ρ = 1), the variance is…",o:["v/k","0","v (no improvement)","1/k"],a:2,e:"With ρ = 1 the bracket equals 1, so variance stays v — identical models give no benefit. Bagging only helps when models make different (uncorrelated) errors."},
+ {q:"Bagging mainly reduces ____, while boosting mainly reduces ____.",o:["bias / variance","variance / bias","noise / bias","variance / noise"],a:1,e:"Bagging averages independent models to cut variance; boosting fits models sequentially to correct earlier errors, reducing bias."},
+ {q:"At TEST time, a network trained with dropout…",o:["Keeps dropping units randomly","Uses all units, with activations scaled to match training","Uses only half the layers","Retrains from scratch"],a:1,e:"Test time uses the full network but rescales so expected activations match training (or inverted dropout scales during training). It cheaply averages the ensemble of sub-networks."},
+ {q:"Dropout approximates bagging because each training step…",o:["Trains a separate independent network","Trains a different thinned sub-network that shares weights with all others","Doubles the dataset","Freezes the weights"],a:1,e:"A random 0/1 mask yields a different sub-network each step; all 2ⁿ sub-networks share one weight set, so training one trains many — bagging on a budget."},
+ {q:"Multiplying many layer gains together, a per-layer gain g < 1 across L deep layers causes gradients to…",o:["Explode","Vanish exponentially (gᴸ → 0)","Stay exactly constant","Become negative"],a:1,e:"gᴸ shrinks toward 0 when g < 1 (and blows up when g > 1). Good initialization and normalization aim to keep the per-layer gain near 1."}
+];
+let score=0,answered=new Set();
+function quizRender(){
+  $("#quiz").innerHTML=qs.map((q,i)=>
+    '<div class="q" data-i="'+i+'"><p class="stem">'+(i+1)+'. '+q.q+'</p>'+
+    q.o.map((o,j)=>'<button class="opt" data-j="'+j+'">'+o+'</button>').join("")+
+    '<div class="exp">'+q.e+'</div></div>').join("");
+  $("#score").textContent=score+" / "+qs.length;
+  $$("#quiz .q").forEach(qel=>{
+    const i=+qel.dataset.i;
+    $$(".opt",qel).forEach(b=>b.addEventListener("click",()=>{
+      if(answered.has(i))return; answered.add(i);
+      const j=+b.dataset.j;
+      if(j===qs[i].a){b.classList.add("right");score++;}
+      else{b.classList.add("wrong");$$(".opt",qel)[qs[i].a].classList.add("right");}
+      $(".exp",qel).classList.add("show"); $("#score").textContent=score+" / "+qs.length;
+    }));
+  });
+}
+$("#qReset").addEventListener("click",()=>{score=0;answered=new Set();quizRender();annotate($("main"));});
+quizRender();
+
+/* ================= glossary + abbr ================= */
+const ABBR={
+ "CNN":"Convolutional Neural Network — uses parameter sharing (one kernel slid across the image)",
+ "MLP":"Multi-Layer Perceptron — a plain fully-connected feed-forward network",
+ "SGD":"Stochastic Gradient Descent — gradient steps on random minibatches",
+ "ReLU":"Rectified Linear Unit — the activation max(0, x)",
+ "epoch":"One full pass through the training set",
+ "bootstrap":"Sampling the dataset with replacement to make a resample for each bagged model",
+ "bagging":"Bootstrap AGGregatING — averaging models trained on bootstrap resamples to cut variance",
+ "boosting":"Training models sequentially, each correcting the previous one's errors, to cut bias",
+ "ensemble":"A collection of models whose predictions are combined",
+ "dropout":"Randomly switching off units during training to approximate a huge shared-weight ensemble",
+ "Bernoulli":"A 0/1 random variable — the dropout mask is Bernoulli with keep-probability 1 − p",
+ "Jacobian":"Matrix of a layer's output derivatives; products of layer Jacobians drive vanishing/exploding gradients",
+ "manifold":"A lower-dimensional surface that data is assumed to lie on",
+ "invariance":"Insensitivity of the output to a transformation of the input (e.g. translation)",
+ "validation":"A held-out set used to tune and to decide when to stop training",
+ "augmentation":"Manufacturing extra training data with label-preserving transforms",
+ "overfitting":"Fitting the training set so closely that generalization suffers",
+ "MAP":"Maximum A Posteriori estimation — combining a prior with the data likelihood",
+ "IID":"Independent and Identically Distributed — the usual assumption on samples"
+};
+const aKeys=Object.keys(ABBR).sort((a,b)=>b.length-a.length);
+const aEsc=s=>s.replace(/[.*+?^${}()|[\]\\\-]/g,"\\$&");
+const aPat="(?:^|(?<=[^A-Za-z0-9]))("+aKeys.map(aEsc).join("|")+")(?![A-Za-z0-9])";
+let rxG,rxT;
+try{ rxG=new RegExp(aPat,"g"); rxT=new RegExp(aPat); }
+catch(e){ rxG=new RegExp("\\b("+aKeys.map(aEsc).join("|")+")\\b","g"); rxT=new RegExp("\\b("+aKeys.map(aEsc).join("|")+")\\b"); }
+function annotate(root){
+  if(!root) return;
+  const bad={SCRIPT:1,STYLE:1,ABBR:1,BUTTON:1,INPUT:1,TEXTAREA:1,H1:1,H2:1,TITLE:1,PRE:1,CANVAS:1};
+  const nodes=[], w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null);
+  while(w.nextNode()){
+    const n=w.currentNode;
+    if(!n.nodeValue||!rxT.test(n.nodeValue)) continue;
+    let p=n.parentNode, ok=true;
+    while(p&&p!==root.parentNode){
+      if(p.nodeType===1){
+        if(p.namespaceURI==="http://www.w3.org/2000/svg"||bad[p.tagName]){ok=false;break;}
+        if(p.classList&&p.classList.contains("no-abbr")){ok=false;break;}
+      }
+      p=p.parentNode;
+    }
+    if(ok) nodes.push(n);
+  }
+  nodes.forEach(n=>{
+    const s=n.nodeValue, frag=document.createDocumentFragment();
+    let last=0,m; rxG.lastIndex=0;
+    while((m=rxG.exec(s))!==null){
+      const term=m[1], at=m.index+m[0].length-term.length;
+      if(at>last) frag.appendChild(document.createTextNode(s.slice(last,at)));
+      const a=document.createElement("abbr"); a.title=ABBR[term]; a.textContent=term; frag.appendChild(a);
+      last=at+term.length; if(rxG.lastIndex===m.index) rxG.lastIndex++;
+    }
+    if(last<s.length) frag.appendChild(document.createTextNode(s.slice(last)));
+    if(frag.childNodes.length) n.parentNode.replaceChild(frag,n);
+  });
+}
+const pop=document.createElement("div"); pop.className="abbr-pop"; document.body.appendChild(pop);
+let popT;
+document.addEventListener("click",e=>{
+  const t=e.target, a=(t&&t.closest)?t.closest("abbr[title]"):null;
+  if(a){ pop.textContent=a.textContent+" · "+a.title; pop.classList.add("on"); clearTimeout(popT); popT=setTimeout(()=>pop.classList.remove("on"),4500); }
+  setTimeout(()=>annotate($("main")),40);
+});
+(function glossary(){
+  const gl=$("#gloss");
+  gl.innerHTML=Object.keys(ABBR).sort((a,b)=>a.toLowerCase().localeCompare(b.toLowerCase()))
+    .map(k=>"<div data-k=\""+(k+" "+ABBR[k]).toLowerCase().replace(/"/g,"")+"\"><b>"+k+"</b> — "+ABBR[k]+"</div>").join("");
+  $("#glossQ").addEventListener("input",e=>{const q=e.target.value.trim().toLowerCase();
+    $$("#gloss div").forEach(d=>{ d.style.display=(!q||d.dataset.k.indexOf(q)>-1)?"":"none"; });});
+})();
+annotate($("main"));
+})();
+</script>
+</body>
+</html>
