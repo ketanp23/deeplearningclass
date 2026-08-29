@@ -1,0 +1,1553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 8 · Optimization for Training Deep Models — SGD, Momentum, Init, Adam, Pretraining & Adversarial Training</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700;800&family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root{
+  --paper:#E6E9E3;       /* drafting / graph paper */
+  --panel:#F7F8F3;       /* vellum panel */
+  --ink:#14171B;
+  --ink2:#4B515A;
+  --pri:#6C30D9;         /* violet — regularization / L2 / the penalty */
+  --acc:#C81C6E;         /* rose  — L1 / sparsity */
+  --sec:#0F7C87;         /* teal  — data term / loss / w* */
+  --warn:#B27412;        /* amber — caution / notes */
+  --rule:rgba(20,23,27,.16);
+  --rule-2:rgba(20,23,27,.34);
+  --disp:'Saira Condensed','Arial Narrow',sans-serif;
+  --body:'Spectral',Georgia,serif;
+  --mono:'IBM Plex Mono',ui-monospace,Consolas,monospace;
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:96px}
+body{
+  margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);
+  font-size:16px;line-height:1.62;
+  background-image:
+    linear-gradient(rgba(20,23,27,.045) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(20,23,27,.045) 1px,transparent 1px);
+  background-size:34px 34px;
+}
+h1,h2,h3,h4{font-family:var(--disp);text-transform:uppercase;letter-spacing:.045em;line-height:1.05;margin:0}
+p{margin:0 0 .85em}
+a{color:var(--sec)}
+:focus-visible{outline:2.5px solid var(--pri);outline-offset:3px}
+
+/* ---------- top bar ---------- */
+.hud{position:sticky;top:0;z-index:40;background:rgba(230,233,227,.93);backdrop-filter:blur(7px);
+  border-bottom:1.5px solid var(--rule-2)}
+.hud-in{max-width:1280px;margin:0 auto;padding:9px 20px;display:flex;align-items:center;gap:18px}
+.hud-id{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink2)}
+.hud-id b{color:var(--pri);font-weight:600}
+.hud-title{font-family:var(--disp);font-weight:800;font-size:17px;letter-spacing:.06em;margin-right:auto}
+.hud-prog{display:flex;align-items:center;gap:9px;font-family:var(--mono);font-size:11px;color:var(--ink2)}
+.prog-track{width:130px;height:5px;background:rgba(20,23,27,.14);border-radius:0}
+.prog-fill{height:100%;width:0;background:var(--pri);transition:width .25s}
+
+/* ---------- shell ---------- */
+.shell{max-width:1080px;margin:0 auto;padding:0 20px 90px;display:block}
+.rail{position:fixed;top:0;left:0;bottom:0;width:280px;max-width:82vw;background:var(--panel);border-right:1.5px solid var(--rule-2);
+  padding:20px 22px 30px;z-index:70;overflow-y:auto;transform:translateX(-104%);transition:transform .28s ease;box-shadow:6px 0 22px rgba(20,23,27,.14)}
+.rail.open{transform:none}
+.rail-bg{position:fixed;inset:0;background:rgba(20,23,27,.38);z-index:65;opacity:0;pointer-events:none;transition:opacity .25s}
+.rail-bg.on{opacity:1;pointer-events:auto}
+.rail-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--rule-2)}
+.rail-h{font-family:var(--mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink2)}
+.rail-x{border:1px solid var(--rule-2);background:var(--paper);color:var(--ink);font-family:var(--mono);font-size:13px;line-height:1;
+  width:28px;height:28px;cursor:pointer}
+.rail-x:hover{background:var(--pri);color:var(--panel);border-color:var(--pri)}
+.ham{flex:none;display:flex;flex-direction:column;justify-content:center;gap:5px;width:40px;height:34px;padding:0 9px;
+  border:1px solid var(--rule-2);background:var(--panel);cursor:pointer}
+.ham span{display:block;height:2px;background:var(--ink);transition:transform .25s,opacity .2s}
+.ham:hover span{background:var(--pri)}
+.ham.open span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+.ham.open span:nth-child(2){opacity:0}
+.ham.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+.rail a{display:flex;gap:10px;align-items:baseline;padding:6px 0;text-decoration:none;color:var(--ink2);font-family:var(--disp);
+  font-size:14.5px;letter-spacing:.05em;text-transform:uppercase;border-bottom:1px dotted transparent}
+.rail a span{font-family:var(--mono);font-size:10px;color:var(--pri);min-width:20px}
+.rail a:hover{color:var(--ink)}
+.rail a.on{color:var(--ink);font-weight:700}
+.rail a.on span{background:var(--pri);color:var(--panel);padding:1px 3px}
+
+/* ---------- hero ---------- */
+.hero{padding:34px 0 8px}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--pri)}
+.hero h1{font-size:clamp(38px,6.4vw,74px);font-weight:800;margin:10px 0 6px;letter-spacing:.02em}
+.hero h1 em{font-style:normal;color:var(--pri)}
+.hero-sub{max-width:60ch;color:var(--ink2);font-size:17px}
+.chartbox{margin-top:22px;border:1.5px solid var(--rule-2);background:var(--panel);position:relative;overflow:hidden}
+.chartbox svg{display:block;width:100%;height:auto}
+.chart-cap{display:flex;flex-wrap:wrap;gap:6px 20px;padding:9px 14px;border-top:1px solid var(--rule);font-family:var(--mono);
+  font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2)}
+.wp{cursor:pointer}
+.wp circle{transition:r .18s,fill .18s}
+.wp:hover circle.hit{r:15}
+.wp:hover text{fill:var(--pri)}
+
+/* ---------- sections ---------- */
+.leg{padding:52px 0 8px;border-top:1.5px solid var(--rule-2);margin-top:44px}
+.leg-head{display:flex;gap:14px;align-items:flex-start;margin-bottom:20px}
+.leg-no{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--panel);background:var(--ink);padding:3px 6px;margin-top:5px;white-space:nowrap}
+.leg h2{font-size:clamp(25px,3.6vw,38px);font-weight:800}
+.leg-kicker{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--pri);margin-bottom:4px}
+.lede{font-size:17.5px;max-width:68ch}
+
+.panel{background:var(--panel);border:1.5px solid var(--rule-2);padding:20px 22px;margin:20px 0}
+.panel-t{font-family:var(--disp);font-weight:700;font-size:16px;letter-spacing:.09em;text-transform:uppercase;
+  display:flex;align-items:center;gap:9px;margin-bottom:14px;padding-bottom:9px;border-bottom:1px solid var(--rule)}
+.panel-t::before{content:"";width:9px;height:9px;background:var(--pri);flex:none;transform:rotate(45deg)}
+.panel-t small{margin-left:auto;font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--ink2);text-transform:uppercase;font-weight:400}
+
+.two{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.three{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+
+/* key list */
+ul.kl{list-style:none;padding:0;margin:0}
+ul.kl li{padding:7px 0 7px 20px;border-bottom:1px dotted var(--rule-2);position:relative}
+ul.kl li:last-child{border-bottom:0}
+ul.kl li::before{content:"▸";position:absolute;left:0;color:var(--pri);font-size:12px;top:8px}
+ul.kl b{font-family:var(--disp);font-size:16px;letter-spacing:.04em;text-transform:uppercase}
+.mono{font-family:var(--mono);font-size:12.5px}
+.def{border-left:3px solid var(--pri);padding:2px 0 2px 14px;margin:14px 0;font-size:17px}
+.note{background:rgba(178,116,18,.1);border:1px solid rgba(178,116,18,.45);padding:11px 14px;font-size:14.5px;margin:14px 0}
+.note b{font-family:var(--disp);letter-spacing:.06em;text-transform:uppercase;color:var(--warn)}
+
+/* plain-words (grade-6) explainer */
+.eli{background:rgba(15,124,135,.06);border:1.5px solid rgba(15,124,135,.38);border-left:5px solid var(--sec);
+  padding:14px 18px 13px;margin:18px 0}
+.eli-h{display:flex;align-items:center;gap:9px;font-family:var(--disp);font-weight:700;font-size:14px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--sec);margin-bottom:9px}
+.eli-h::before{content:"";width:11px;height:11px;border-radius:50%;background:var(--sec);box-shadow:0 0 0 3px rgba(15,124,135,.22);flex:none}
+.eli-h small{margin-left:auto;font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;color:var(--ink2);font-weight:400}
+.eli p{font-size:16px;line-height:1.66;margin:0 0 .6em}
+.eli p:last-child{margin-bottom:0}
+.eli b{color:var(--ink);font-weight:600}
+.eli .pic{font-style:italic;color:var(--sec)}
+
+/* display equation */
+.eqn{font-family:var(--mono);font-size:15px;line-height:1.9;background:rgba(108,48,217,.055);border-left:4px solid var(--pri);
+  padding:12px 16px;margin:14px 0;overflow-x:auto;letter-spacing:.01em}
+.eqn .lbl{color:var(--ink2);font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+.eqn b{color:var(--pri)} .eqn .t{color:var(--sec)}
+sub,sup{font-size:.72em;line-height:0}
+
+/* table */
+table.t{width:100%;border-collapse:collapse;font-size:14px}
+table.t th{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;text-align:left;
+  padding:8px 9px;border-bottom:1.5px solid var(--ink);color:var(--ink2)}
+table.t td{padding:8px 9px;border-bottom:1px solid var(--rule);vertical-align:top}
+table.t tr:hover td{background:rgba(108,48,217,.06)}
+table.t td.hl{color:var(--pri);font-weight:600}
+
+/* controls */
+.ctl{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+button.chip{font-family:var(--disp);font-size:14px;letter-spacing:.06em;text-transform:uppercase;padding:6px 13px;
+  background:transparent;border:1.5px solid var(--rule-2);color:var(--ink2);cursor:pointer}
+button.chip:hover{border-color:var(--ink);color:var(--ink)}
+button.chip.on{background:var(--ink);border-color:var(--ink);color:var(--panel)}
+button.chip.mag.on{background:var(--pri);border-color:var(--pri)}
+button.chip.rose.on{background:var(--acc);border-color:var(--acc)}
+.slider{display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:center;margin:12px 0}
+.slider label{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink2);grid-column:1/-1}
+.slider input[type=range]{width:100%;accent-color:var(--pri)}
+.slider output{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--pri);min-width:92px;text-align:right}
+input[type=number]{font-family:var(--mono);font-size:13px;padding:5px 7px;border:1.5px solid var(--rule-2);background:#fff;width:100%}
+.field{margin-bottom:9px}
+.field label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink2);margin-bottom:3px}
+
+/* readouts */
+.reads{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:1.5px;background:var(--rule-2);border:1.5px solid var(--rule-2)}
+.read{background:var(--panel);padding:10px 12px}
+.read i{font-style:normal;display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2)}
+.read b{display:block;font-family:var(--disp);font-size:26px;font-weight:700;letter-spacing:.02em;line-height:1.15}
+.read b s{text-decoration:none;font-size:13px;color:var(--ink2);font-weight:500}
+.read.warn b{color:var(--warn)} .read.bad b{color:var(--acc)} .read.good b{color:var(--sec)} .read.pri b{color:var(--pri)}
+
+/* detail block */
+.detail{margin-top:14px;border-top:1px solid var(--rule);padding-top:12px;min-height:104px}
+.detail h4{font-size:19px;margin-bottom:3px}
+.detail .spec{font-family:var(--mono);font-size:11.5px;color:var(--pri);letter-spacing:.06em;margin-bottom:7px}
+
+/* cards */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:12px}
+.card{border:1.5px solid var(--rule-2);background:var(--panel);padding:14px;cursor:pointer;transition:transform .16s}
+.card:hover{transform:translateY(-3px);border-color:var(--pri)}
+.card h4{font-size:16px;margin-bottom:5px}
+.card .tag{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--pri)}
+.card p{font-size:14px;margin:6px 0 0;color:var(--ink2)}
+.card .fix{display:none;margin-top:9px;padding-top:8px;border-top:1px dotted var(--rule-2);font-size:13.5px}
+.card.open .fix{display:block}
+.card.open{border-color:var(--pri)}
+
+/* quiz */
+.q{border-bottom:1px solid var(--rule);padding:14px 0}
+.q p.stem{font-weight:600;margin-bottom:8px}
+.opt{display:block;width:100%;text-align:left;font-family:var(--body);font-size:14.5px;padding:6px 11px;margin-bottom:5px;
+  background:#fff;border:1.5px solid var(--rule);cursor:pointer;color:var(--ink)}
+.opt:hover{border-color:var(--ink2)}
+.opt.right{border-color:var(--sec);background:rgba(15,124,135,.11);font-weight:600}
+.opt.wrong{border-color:var(--acc);background:rgba(200,28,110,.09);text-decoration:line-through}
+.exp{display:none;font-size:13.5px;color:var(--ink2);border-left:3px solid var(--sec);padding-left:11px;margin-top:7px}
+.exp.show{display:block}
+
+/* misc */
+.stat-row{display:flex;flex-wrap:wrap;gap:10px;font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2)}
+.foot{margin-top:52px;border-top:1.5px solid var(--rule-2);padding-top:16px;font-family:var(--mono);font-size:11px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink2);display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between}
+.badge{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  border:1px solid var(--rule-2);padding:1px 6px;color:var(--ink2)}
+
+/* figures */
+.fig{margin:20px 0;border:1.5px solid var(--rule-2);background:var(--panel);padding:16px 18px 12px}
+.fig svg{display:block;width:100%;height:auto}
+.fig figcaption{margin-top:11px;padding-top:9px;border-top:1px solid var(--rule);font-family:var(--mono);
+  font-size:11px;letter-spacing:.05em;color:var(--ink2);line-height:1.55}
+.fig figcaption b{color:var(--pri);letter-spacing:.14em;margin-right:6px}
+
+/* abbreviations */
+abbr[title]{border-bottom:1px dotted var(--pri);text-decoration:none;cursor:help}
+abbr[title]:hover{background:rgba(108,48,217,.1)}
+.abbr-pop{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--ink);color:var(--panel);
+  font-family:var(--mono);font-size:12.5px;line-height:1.5;padding:9px 15px;z-index:60;max-width:min(92vw,540px);
+  opacity:0;pointer-events:none;transition:opacity .18s;border-left:4px solid var(--pri)}
+.abbr-pop.on{opacity:1}
+
+/* key takeaways */
+.tk{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1.5px;background:var(--rule-2);border:1.5px solid var(--rule-2)}
+.tk-item{background:var(--panel);padding:17px 18px;display:flex;gap:14px;align-items:flex-start}
+.tk-item i{font-style:normal;font-family:var(--disp);font-size:30px;font-weight:800;color:var(--pri);line-height:.9;min-width:36px}
+.tk-item h4{font-size:16.5px;margin-bottom:5px}
+.tk-item p{font-size:14.5px;margin:0;color:var(--ink2);line-height:1.55}
+.headline{border:1.5px solid var(--ink);background:var(--ink);color:var(--paper);padding:20px 22px;margin:20px 0}
+.headline h3{font-size:clamp(19px,2.6vw,26px);color:var(--paper);margin-bottom:8px}
+.headline p{margin:0;font-size:16px;opacity:.92}
+.headline b{color:#C79BF0}
+
+/* glossary */
+.gloss{column-count:2;column-gap:28px}
+.gloss div{break-inside:avoid;padding:5px 0;border-bottom:1px dotted var(--rule);font-size:14px;line-height:1.45}
+.gloss b{font-family:var(--mono);font-size:12px;color:var(--pri);letter-spacing:.03em}
+input.search{font-family:var(--mono);font-size:13px;padding:7px 10px;border:1.5px solid var(--rule-2);background:#fff;width:100%;margin-bottom:14px}
+
+/* code */
+pre.code{background:#14171B;color:#E9EDDD;font-family:var(--mono);font-size:12.5px;line-height:1.65;
+  padding:13px 16px;overflow-x:auto;margin:12px 0;border-left:4px solid var(--pri)}
+pre.code .c{color:#8a967f}
+pre.code .k{color:#C79BF0}
+pre.code .s{color:#7fc8d2}
+
+/* labs */
+.lab{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0}
+.cv{border:1.5px solid var(--rule-2);background:#fff}
+.cv canvas{display:block;width:100%;height:auto}
+.cv-cap{font-family:var(--mono);font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink2);
+  padding:6px 9px;border-top:1px solid var(--rule);background:var(--panel)}
+.bar-row{display:grid;grid-template-columns:130px 1fr 92px;gap:10px;align-items:center;font-family:var(--mono);
+  font-size:11px;letter-spacing:.04em;margin:6px 0}
+.bar-row .tr{background:rgba(20,23,27,.1);height:13px;position:relative}
+.bar-row .fl{position:absolute;left:0;top:0;bottom:0;background:var(--pri);transition:width .18s}
+.bar-row .fl.rose{background:var(--acc)} .bar-row .fl.sec{background:var(--sec)} .bar-row .fl.dim{background:var(--rule-2)}
+.bar-row b{text-align:right;font-weight:600}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink2);margin:8px 0}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:16px;height:3px;display:inline-block}
+.contour-wrap{border:1.5px solid var(--rule-2);background:#fff}
+.contour-wrap svg{display:block;width:100%;height:auto}
+
+@media(max-width:960px){
+  .hud-title{font-size:14px}
+  .two,.three,.lab{grid-template-columns:1fr}
+  .gloss{column-count:1}
+}
+@media(prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+  html{scroll-behavior:auto}
+}
+
+/* in-practice use-case block */
+.uc{background:rgba(108,48,217,.05);border:1.5px solid rgba(108,48,217,.32);border-left:5px solid var(--pri);padding:14px 18px 13px;margin:18px 0}
+.uc-h{display:flex;align-items:center;gap:9px;font-family:var(--disp);font-weight:700;font-size:14px;letter-spacing:.1em;text-transform:uppercase;color:var(--pri);margin-bottom:9px}
+.uc-h::before{content:"";width:11px;height:11px;background:var(--pri);transform:rotate(45deg);flex:none}
+.uc-h .tag{margin-left:auto;font-family:var(--mono);font-size:9px;letter-spacing:.12em;color:var(--pri);font-weight:400;border:1px solid rgba(108,48,217,.4);padding:2px 7px;text-transform:uppercase}
+.uc p{font-size:15px;line-height:1.6;margin:0 0 .55em}
+.uc p:last-child{margin-bottom:0}
+.uc b{color:var(--ink);font-weight:600}
+.uc .case{font-family:var(--mono);font-size:11.5px;line-height:1.5;color:var(--ink2);margin-top:9px;padding-top:9px;border-top:1px dashed var(--rule-2)}
+.uc .case b{color:var(--pri)}
+
+/* ===== shared additions for these volumes ===== */
+.netwrap{border:1.5px solid var(--rule-2);background:#fff}
+.netwrap svg{display:block;width:100%;height:auto}
+.pipe{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-family:var(--disp);font-size:13.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink2);margin:10px 0}
+.pipe b{background:#fff;border:1.5px solid var(--rule-2);padding:6px 11px;color:var(--ink)}
+.pipe span{font-family:var(--mono);color:var(--rule-2)}
+.tvbar{display:grid;grid-template-columns:118px 1fr 62px;gap:10px;align-items:center;font-family:var(--mono);font-size:11px;margin:5px 0}
+.tvbar .tr{background:rgba(20,23,27,.08);height:14px;position:relative}
+.tvbar .fl{position:absolute;left:0;top:0;bottom:0;background:var(--sec);transition:width .18s}
+.tvbar .fl.pri{background:var(--pri)} .tvbar .fl.rose{background:var(--acc)} .tvbar .fl.warn{background:var(--warn)}
+.tvbar b{text-align:right}
+.grid-lab{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+@media(max-width:960px){ .grid-lab{grid-template-columns:1fr} }
+.pill{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;border:1px solid var(--rule-2);padding:2px 7px;color:var(--ink2);margin:2px 4px 2px 0}
+.pill.pri{color:var(--pri);border-color:rgba(108,48,217,.5)}
+.pill.sec{color:var(--sec);border-color:rgba(15,124,135,.5)}
+.pill.rose{color:var(--acc);border-color:rgba(200,28,110,.5)}
+.pill.warn{color:var(--warn);border-color:rgba(178,116,18,.5)}
+</style>
+</head>
+<body>
+
+<div class="hud">
+  <div class="hud-in">
+    <button class="ham" id="ham" aria-label="Open toolkit menu" aria-expanded="false" aria-controls="rail"><span></span><span></span><span></span></button>
+    <div class="hud-id">CH <b>08</b></div>
+    <div class="hud-title">Optimization for Training Deep Models</div>
+    <div class="hud-prog"><span id="progTxt">0%</span><div class="prog-track"><div class="prog-fill" id="progFill"></div></div></div>
+  </div>
+</div>
+
+<div class="shell">
+
+  <nav class="rail no-abbr" id="rail" aria-label="Toolkit menu">
+    <div class="rail-top"><div class="rail-h">Descent route / 9 stations + summary</div><button class="rail-x" id="railX" aria-label="Close menu">&#10005;</button></div>
+    <a href="#l1"><span>01</span>Learning vs optimization</a>
+    <a href="#l2"><span>02</span>Optimization challenges</a>
+    <a href="#l3"><span>03</span>Deep-net difficulty</a>
+    <a href="#l4"><span>04</span>Stochastic gradient descent</a>
+    <a href="#l5"><span>05</span>Momentum &amp; Nesterov</a>
+    <a href="#l6"><span>06</span>Initialization</a>
+    <a href="#l7"><span>07</span>Adaptive rates · Adam</a>
+    <a href="#l8"><span>08</span>Greedy pretraining</a>
+    <a href="#l9"><span>09</span>Adversarial training</a>
+    <a href="#l10"><span>Σ</span>Revision + takeaways</a>
+  </nav>
+  <div class="rail-bg" id="railBg"></div>
+
+  <main>
+
+  <!-- ================= HERO ================= -->
+  <header class="hero">
+    <div class="eyebrow">Deep learning · Chapter 8 · How deep nets actually get trained</div>
+    <h1>Down the<br><em>loss landscape</em>.</h1>
+    <p class="hero-sub">Training a neural network is an optimization problem — but an unusual one. We don't want the true minimum of the training loss; we want the parameters that generalize, reached by a noisy, high-dimensional descent riddled with saddle points, cliffs, flat plateaus and gradients that vanish through depth. This volume is the machinery that makes it work: stochastic gradient descent, momentum, careful initialization, adaptive per-parameter rates like Adam, layer-wise pretraining and adversarial hardening. Every landscape, trajectory and gradient bar below is computed live in your browser.</p>
+
+    <div class="chartbox">
+      <svg viewBox="0 0 960 372" role="img" aria-label="A loss landscape cross-section with a descent path passing a saddle and a plateau on the way to a broad minimum">
+        <rect width="960" height="372" fill="#F7F8F3"/>
+        <!-- axes -->
+        <line x1="70" y1="40" x2="70" y2="330" stroke="#14171B" stroke-width="1.4"/>
+        <line x1="70" y1="330" x2="915" y2="330" stroke="#14171B" stroke-width="1.4"/>
+        <text x="24" y="48" font-family="IBM Plex Mono,monospace" font-size="10" fill="#4B515A">loss</text>
+        <text x="838" y="350" font-family="IBM Plex Mono,monospace" font-size="10" fill="#4B515A">parameter θ →</text>
+
+        <!-- the loss curve: high start, saddle/plateau in middle, broad min right -->
+        <path id="lossPath" d="M70 90 C 170 250, 250 292, 340 286 C 430 280, 470 250, 520 250 C 590 250, 630 292, 720 300 C 800 306, 860 250, 905 150" fill="none" stroke="#0F7C87" stroke-width="2.6"/>
+
+        <!-- saddle / plateau marker -->
+        <line x1="430" y1="120" x2="430" y2="330" stroke="#B27412" stroke-width="1.2" stroke-dasharray="5 4"/>
+        <text x="436" y="132" font-family="IBM Plex Mono,monospace" font-size="10" fill="#B27412">SADDLE / PLATEAU · gradient ≈ 0</text>
+
+        <!-- broad minimum -->
+        <line x1="720" y1="120" x2="720" y2="330" stroke="#6C30D9" stroke-width="1.2" stroke-dasharray="5 4"/>
+        <text x="726" y="132" font-family="IBM Plex Mono,monospace" font-size="10" fill="#6C30D9">BROAD MINIMUM · generalizes</text>
+
+        <g id="wps"></g>
+        <g id="opt">
+          <circle r="6" fill="#C81C6E"/>
+          <animateMotion dur="16s" repeatCount="indefinite" rotate="0"><mpath href="#lossPath"/></animateMotion>
+        </g>
+        <text x="120" y="80" font-family="IBM Plex Mono,monospace" font-size="10" fill="#C81C6E">the optimizer descends ↓</text>
+      </svg>
+      <div class="chart-cap">
+        <span>◆ 9 stations · 8 live labs</span>
+        <span>◆ Goodfellow · Deep Learning · Chapter 8</span>
+        <span>◆ every trajectory computed in-browser</span>
+      </div>
+    </div>
+  </header>
+  <!-- ================= 01 LEARNING VS OPTIMIZATION ================= -->
+  <section class="leg" id="l1">
+    <div class="leg-head"><div class="leg-no">01</div><div>
+      <div class="leg-kicker">The mismatch · §8.1</div><h2>How Learning Differs from Pure Optimization</h2></div></div>
+
+    <p class="lede">Optimization minimizes a function; learning wants a function it can't even measure. We would love to minimize the <b>true risk</b> — the expected loss over the real data distribution — but we only have samples, so we minimize the <b>empirical risk</b> over the training set and hope the two agree. That single gap, plus a few others, is what separates training a network from solving a clean optimization problem.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> imagine studying for a test using an old practice sheet. Your real goal is to do well on the <b>real test</b> next week, but the only thing you can actually practise on is the sheet in front of you. If you memorise the practice sheet perfectly, you might still flop on the real test.</p>
+      <p>Machines have the exact same problem. The "real test" is every future example the world will ever throw at it — which nobody can show the computer. So it practises on the examples we <b>do</b> have (the training set) and tries to keep the gap between practice and reality small. It also uses a couple of clever cheats: it grades itself with a smoother, easier-to-improve score than the real "right or wrong" count, and it peeks at practice questions in small handfuls rather than all at once.</p>
+    </div>
+
+    <div class="eqn"><span class="lbl">True risk vs empirical risk</span><br>
+      J*(<b>θ</b>) = E<sub>(x,y)∼p<sub>data</sub></sub> [ <span class="t">L(f(x;θ), y)</span> ] &nbsp;&nbsp;→ can't compute&nbsp;&nbsp; ⟹ &nbsp;&nbsp; J(<b>θ</b>) = <b>(1/m) Σ<sub>i</sub> L(f(x<sup>(i)</sup>;θ), y<sup>(i)</sup>)</b> &nbsp; over m training examples</div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panel-t">Four ways learning ≠ optimization</div>
+        <ul class="kl">
+          <li><b>Objective is a proxy = </b>we minimize empirical risk on a finite sample, not the true risk we care about. Minimizing it too hard is overfitting.</li>
+          <li><b>Surrogate loss = </b>the loss we actually care about (e.g. 0–1 classification error) has zero gradient almost everywhere, so we optimize a smooth surrogate like log-loss instead.</li>
+          <li><b>Stop early = </b>optimization halts when the gradient is small; learning halts when a <i>validation</i> metric stops improving — often long before the training loss bottoms out.</li>
+          <li><b>Minibatches = </b>we estimate the gradient from a small random batch, trading exactness for many cheap, noisy steps.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <div class="panel-t">Why a surrogate loss <small>Gradients need to flow</small></div>
+        <p style="font-size:14.5px">The 0–1 loss counts mistakes: it is flat between mistakes and jumps at the boundary, so its gradient is <b>0 almost everywhere and undefined at the jump</b>. Gradient descent has nothing to follow.</p>
+        <p style="font-size:14.5px;color:var(--ink2)">A surrogate — negative log-likelihood, hinge, squared error — is smooth and keeps pushing even once the sign is already correct, driving the model to be <i>confidently</i> right. It upper-bounds the real loss, so making it small makes the real error small too.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Surrogate loss bench <small>Loss vs classification margin y·f(x)</small></div>
+      <div class="grid-lab">
+        <div class="cv"><canvas id="surCv" width="460" height="330"></canvas><div class="cv-cap">Loss (vertical) against margin m = y·f(x). Right of 0 = correct; left = wrong.</div></div>
+        <div>
+          <div class="ctl" id="surCtl"></div>
+          <ul class="kl">
+            <li><b>0–1 loss (grey) = </b>a step: 1 when wrong, 0 when right. Flat gradient everywhere — useless for descent.</li>
+            <li><b>Log / logistic (violet) = </b>smooth, never quite zero; keeps rewarding larger correct margins, so it makes the model confidently right.</li>
+            <li><b>Hinge / SVM (teal) = </b>zero once the margin exceeds 1, a constant slope before that — the max-margin idea.</li>
+            <li><b>Squared (rose) = </b>penalizes even over-confident correct predictions, so it's rarely used raw for classification.</li>
+          </ul>
+          <div class="note"><b>The takeaway.</b> Each surrogate sits <i>above</i> the 0–1 step, so shrinking it shrinks the true error — but with a gradient the optimizer can actually follow.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">Every training loop</span></div>
+      <p>This mismatch is why your training curve and your <b>validation curve diverge</b>. Training loss keeps sliding down as the optimizer overfits the finite sample; validation loss bottoms out and turns up. You watch the validation curve, not the training loss, to decide when the model is actually good.</p>
+      <p>It's also why classification models are trained with <b>cross-entropy</b>, not accuracy: accuracy has no usable gradient. You optimize the surrogate and <i>report</i> the metric you care about.</p>
+      <div class="case"><b>Rule of thumb:</b> train on a smooth surrogate, early-stop on the real validation metric, and never confuse "training loss is tiny" with "the model is good".</div>
+    </div>
+  </section>
+
+  <!-- ================= 02 CHALLENGES ================= -->
+  <section class="leg" id="l2">
+    <div class="leg-head"><div class="leg-no">02</div><div>
+      <div class="leg-kicker">The terrain · §8.2</div><h2>Challenges in Neural Network Optimization</h2></div></div>
+
+    <p class="lede">Neural-network loss surfaces are non-convex and high-dimensional, and they fight back. The classic worry was local minima, but the real obstacles turn out to be <b>saddle points, flat plateaus, ill-conditioning, cliffs and vanishing gradients</b>. Knowing which enemy you face tells you which tool from the rest of this chapter to reach for.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> think of the loss as a giant hilly landscape in the fog, and the optimizer as a hiker who can only feel the slope right under their feet and always steps downhill. Lots of things can go wrong: a flat meadow where every direction feels level (which way is down?), a mountain pass that dips one way but rises another, or a sudden cliff that sends the hiker tumbling.</p>
+      <p>Once upon a time people feared the hiker would get stuck in a small dip (a "local minimum") and miss the deepest valley. It turns out that in a landscape with millions of directions, truly-stuck dips are rare — the real time-wasters are the flat meadows and mountain passes where the ground barely tilts, so the hiker crawls. Most of this chapter is about helping the hiker cross those flat spots quickly and safely.</p>
+    </div>
+
+    <div class="three">
+      <div class="panel">
+        <div class="panel-t">Ill-conditioning</div>
+        <p style="font-size:14px">The Hessian has wildly different curvatures across directions. Gradient descent then bounces across steep directions while crawling along flat ones — even a convex bowl becomes painfully slow. Momentum and adaptive rates target exactly this.</p>
+      </div>
+      <div class="panel">
+        <div class="panel-t">Saddles &gt; local minima</div>
+        <p style="font-size:14px">In high dimensions, critical points are overwhelmingly <b>saddle points</b>, not minima. The gradient nearly vanishes, stalling first-order methods, but the loss there is usually far above the global minimum — so escaping matters.</p>
+      </div>
+      <div class="panel">
+        <div class="panel-t">Cliffs &amp; explosions</div>
+        <p style="font-size:14px">Sharp cliffs — common in RNNs — produce huge gradients that fling the parameters far away in one step. <b>Gradient clipping</b> caps the step size so a single spike can't wreck the run.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Landscape lab <small>Pick a terrain · watch gradient descent try to cross it</small></div>
+      <div class="grid-lab">
+        <div class="cv"><canvas id="landCv" width="460" height="300"></canvas><div class="cv-cap">1-D loss slice; ball = gradient-descent iterate. Bar shows |gradient|.</div></div>
+        <div>
+          <div class="ctl" id="landCtl"></div>
+          <div class="slider"><div class="field"><label>Learning rate ε</label><input type="range" id="landLr" min="1" max="120" value="45"></div><output id="landLro" class="mono">0.045</output></div>
+          <div class="reads">
+            <div class="read pri"><i>Steps taken</i><b id="landSteps">0</b></div>
+            <div class="read"><i>|gradient|</i><b id="landGrad">—</b></div>
+            <div class="read good"><i>Status</i><b id="landStat" style="font-size:15px">—</b></div>
+          </div>
+          <div class="ctl" style="margin-top:8px"><button class="chip mag" id="landRun">Run descent</button><button class="chip" id="landReset">Reset ball</button></div>
+          <p style="font-size:13px;color:var(--ink2);margin-top:8px" id="landMsg">Choose a terrain and press Run. On the plateau and saddle, watch how the tiny gradient makes progress crawl to a halt.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">Diagnosing a stalled run</span></div>
+      <p>When training <b>plateaus</b>, the map above is your diagnostic. Loss flat but gradient tiny? You're likely on a saddle or plateau — momentum and adaptive methods help punch through. Loss spiking erratically? A cliff — clip the gradient or lower the rate.</p>
+      <p>Slow, zig-zagging progress on a smooth curve is the signature of <b>ill-conditioning</b> — the case momentum was invented for, coming up next.</p>
+      <div class="case"><b>Good to know:</b> the empirical surprise of deep learning is that most local minima are nearly as good as the global one — so the fight is against flatness and conditioning, not bad minima.</div>
+    </div>
+  </section>
+
+  <!-- ================= 03 DEEP-NET DIFFICULTY ================= -->
+  <section class="leg" id="l3">
+    <div class="leg-head"><div class="leg-no">03</div><div>
+      <div class="leg-kicker">Depth bites back · Vanishing &amp; exploding gradients</div><h2>The Difficulty of Training Deep Networks</h2></div></div>
+
+    <p class="lede">Depth multiplies. Back-propagation sends the error signal backward through every layer, and at each layer it is multiplied by that layer's weights and activation slopes. Multiply many numbers below 1 and the signal <b>vanishes</b>; multiply many numbers above 1 and it <b>explodes</b>. Either way, the early layers of a deep network get a gradient that is useless — too small to learn from or too big to be stable.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> imagine whispering a message down a long line of friends, where each friend can only pass on <b>half</b> of what they heard. After ten friends almost nothing is left — the message has faded to silence. Now imagine instead each friend <b>doubles</b> the volume: by the end it's a deafening, garbled roar.</p>
+      <p>The learning signal in a deep network travels backward through the layers exactly like that whispered message. If each layer shrinks it a little, the first layers hear nothing and never learn (the signal <b>vanished</b>). If each layer amplifies it, the signal blows up into nonsense (it <b>exploded</b>). The fix is to keep every layer passing the message along at roughly the same volume — which is what good activation functions and careful initialization are for.</p>
+    </div>
+
+    <div class="eqn"><span class="lbl">Why the gradient scales geometrically with depth</span><br>
+      ∂L/∂h<sub>1</sub> = <b>W<sub>L</sub>ᵀ diag(σ′) ⋯ W<sub>2</sub>ᵀ diag(σ′)</b> · ∂L/∂h<sub>L</sub> &nbsp;&nbsp;⟹&nbsp;&nbsp; magnitude ≈ <b>(w · σ′)<sup>L</sup></b> — a number raised to the depth L</div>
+
+    <div class="panel">
+      <div class="panel-t">Gradient-through-depth lab <small>Set the weight scale &amp; activation · watch the signal per layer</small></div>
+      <div class="grid-lab">
+        <div>
+          <div class="slider"><div class="field"><label>Depth (layers)</label><input type="range" id="vgL" min="4" max="24" value="16"></div><output id="vgLo" class="mono">16</output></div>
+          <div class="slider"><div class="field"><label>Weight scale (typical |w|)</label><input type="range" id="vgW" min="20" max="220" value="90"></div><output id="vgWo" class="mono">0.90</output></div>
+          <div class="ctl" id="vgAct"></div>
+          <div class="reads">
+            <div class="read pri"><i>Signal at layer 1 / at output</i><b id="vgRatio">—</b></div>
+            <div class="read good"><i>Regime</i><b id="vgReg" style="font-size:15px">—</b></div>
+          </div>
+        </div>
+        <div>
+          <p style="font-size:13px;color:var(--ink2);margin:0 0 6px" class="mono">RELATIVE GRADIENT MAGNITUDE, OUTPUT → INPUT LAYER</p>
+          <div id="vgBars"></div>
+          <p style="font-size:13px;color:var(--ink2);margin-top:8px" id="vgMsg">—</p>
+        </div>
+      </div>
+      <div class="note"><b>The sweet spot.</b> Sigmoid's slope maxes at 0.25, so its signal fades fast — a big reason ReLU (slope 1 on the active side) and near-1 weight scaling took over. Aim for a per-layer factor near 1: neither fading nor blowing up.</div>
+    </div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panel-t">The historical fixes</div>
+        <ul class="kl">
+          <li><b>Better activations = </b>ReLU and friends keep the derivative at 1 on the active side, so the product doesn't collapse like sigmoid/tanh.</li>
+          <li><b>Careful init = </b>Xavier/He scaling sets the initial weights so variance is preserved layer to layer (station 06).</li>
+          <li><b>Normalization = </b>batch/layer norm rescales activations mid-network to keep signals well-behaved.</li>
+          <li><b>Skip connections = </b>residual links give the gradient a shortcut straight back, sidestepping the long product entirely.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <div class="panel-t">Vanishing vs exploding</div>
+        <table class="t"><thead><tr><th>&nbsp;</th><th>Vanishing</th><th>Exploding</th></tr></thead><tbody>
+          <tr><td class="hl">Per-layer factor</td><td>&lt; 1</td><td>&gt; 1</td></tr>
+          <tr><td class="hl">Early layers</td><td>Barely update</td><td>Wild, unstable updates</td></tr>
+          <tr><td class="hl">Symptom</td><td>Loss stalls; depth doesn't help</td><td>Loss → NaN; spikes</td></tr>
+          <tr><td class="hl">First aid</td><td>ReLU, He init, residuals</td><td>Gradient clipping, smaller init</td></tr>
+        </tbody></table>
+      </div>
+    </div>
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">Why ResNets exist</span></div>
+      <p>Before residual connections, networks past ~20 layers actually got <b>worse</b>, not from overfitting but because the gradient couldn't reach the early layers. Skip connections let signals bypass the long multiplicative chain, and suddenly 50-, 100-, even 1000-layer networks trained fine.</p>
+      <p>In recurrent networks the same problem appears <b>over time steps</b> — the reason plain RNNs forget long contexts and LSTMs/GRUs (with their gated, near-1 pathways) were invented.</p>
+      <div class="case"><b>Where it shows up:</b> ResNets in vision, LSTM/GRU gating and gradient clipping in sequence models, and normalization layers nearly everywhere.</div>
+    </div>
+  </section>
+  <!-- ================= 04 SGD ================= -->
+  <section class="leg" id="l4">
+    <div class="leg-head"><div class="leg-no">04</div><div>
+      <div class="leg-kicker">The workhorse · §8.3</div><h2>Stochastic Gradient Descent</h2></div></div>
+
+    <p class="lede">Stochastic gradient descent is the engine of nearly all deep learning. Instead of the exact gradient over the whole dataset, it uses a cheap, noisy estimate from a small random <b>minibatch</b>, takes a step, and repeats. The noise is not just tolerated — it's useful, jostling the iterate out of shallow traps — but it means the learning rate must eventually shrink for the run to settle.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> you're finding the lowest point in a valley in thick fog. The careful way is to survey the whole valley before every step — accurate, but painfully slow. The stochastic way is to glance at just a small patch near your feet and step right away. Each glance is a bit wrong, so you wander a little, but you take <b>hundreds</b> of steps in the time the careful method takes one.</p>
+      <p>That's SGD. The "small patch" is a minibatch of examples. The steps are jittery because each batch gives a slightly different idea of "downhill," but the jitter actually helps you hop over tiny ditches. Near the bottom, though, the jitter keeps you bouncing around the lowest point, so you slowly take <b>smaller and smaller steps</b> to settle down — that shrinking step size is the learning-rate schedule.</p>
+    </div>
+
+    <div class="eqn"><span class="lbl">SGD update on a minibatch of size b</span><br>
+      g&#770; = (1/b) Σ<sub>i∈batch</sub> ∇<sub>θ</sub> L(f(x<sup>(i)</sup>;θ), y<sup>(i)</sup>) &nbsp;&nbsp;⟹&nbsp;&nbsp; <b>θ ← θ − ε<sub>k</sub> g&#770;</b> &nbsp;, with ε<sub>k</sub> decayed over time</div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panel-t">The two knobs that decide everything</div>
+        <ul class="kl">
+          <li><b>Learning rate ε = </b>the single most important hyperparameter. Too small: glacial. Too big: overshoot and diverge. Usually decayed on a schedule (linear, cosine, step).</li>
+          <li><b>Batch size b = </b>bigger batches give a less noisy gradient (noise ∝ 1/√b) but cost more per step and can generalize slightly worse. Small batches are noisier but explore more.</li>
+          <li><b>Decay the rate = </b>a sufficient condition for convergence is Σε<sub>k</sub> = ∞ and Σε<sub>k</sub>² &lt; ∞ — step forever, but with shrinking steps.</li>
+          <li><b>Cost per step is constant = </b>SGD's compute per update doesn't grow with dataset size, which is why it scales to millions of examples.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <div class="panel-t">Why the noise helps <small>and why it must shrink</small></div>
+        <p style="font-size:14.5px">Because the gradient is estimated from a random batch, even at the true minimum g&#770; is non-zero — so a fixed rate leaves the iterate <b>rattling</b> in a cloud around the optimum whose size is set by ε.</p>
+        <p style="font-size:14.5px;color:var(--ink2)">Shrinking ε tightens that cloud toward a point. Early on, the same noise is a feature: it lets SGD escape sharp, shallow minima and drift toward the broad, flat basins that tend to generalize better.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">SGD sandbox <small>Descend a stretched bowl · feel the rate &amp; the batch noise</small></div>
+      <div class="grid-lab">
+        <div class="cv"><canvas id="sgdCv" width="440" height="330"></canvas><div class="cv-cap">Contours of an ill-conditioned quadratic; path = SGD iterates from the same start.</div></div>
+        <div>
+          <div class="slider"><div class="field"><label>Learning rate ε</label><input type="range" id="sgdLr" min="1" max="100" value="30"></div><output id="sgdLro" class="mono">0.030</output></div>
+          <div class="slider"><div class="field"><label>Batch noise (smaller batch → more)</label><input type="range" id="sgdNoise" min="0" max="100" value="30"></div><output id="sgdNoiseo" class="mono">0.30</output></div>
+          <div class="reads">
+            <div class="read pri"><i>Final distance to min</i><b id="sgdDist">—</b></div>
+            <div class="read good"><i>Outcome</i><b id="sgdOut" style="font-size:15px">—</b></div>
+          </div>
+          <div class="ctl" style="margin-top:8px"><button class="chip mag" id="sgdRun">Run 60 steps</button></div>
+          <p style="font-size:13px;color:var(--ink2);margin-top:8px" id="sgdMsg">Turn the rate up until the path overshoots and spirals out. Add noise and watch the path never fully settle — that's the cloud a fixed rate leaves behind.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">Default optimizer</span></div>
+      <p><b>SGD with momentum</b> (next section) remains a top choice for training large vision models — often generalizing better than fancier methods when tuned. The recipe is a learning-rate warmup, then a cosine or step decay, with batch sizes chosen to fill the hardware.</p>
+      <p>The <b>linear scaling rule</b> — double the batch, double the learning rate — lets teams train across hundreds of GPUs while keeping the dynamics roughly fixed.</p>
+      <div class="case"><b>Where it shows up:</b> essentially every training run on Earth; the differences between optimizers are refinements on top of this loop.</div>
+    </div>
+  </section>
+
+  <!-- ================= 05 MOMENTUM & NESTEROV ================= -->
+  <section class="leg" id="l5">
+    <div class="leg-head"><div class="leg-no">05</div><div>
+      <div class="leg-kicker">Build up speed · §8.3.2–8.3.3</div><h2>Momentum &amp; Nesterov Momentum</h2></div></div>
+
+    <p class="lede">Plain SGD zig-zags across a stretched valley, wasting steps bouncing between the steep walls while barely moving along the gentle floor. Momentum fixes this by giving the iterate <b>velocity</b>: it accumulates a running average of past gradients, so consistent directions build up speed while oscillating ones cancel out. Nesterov's variant looks ahead before it commits, correcting sooner.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> roll a heavy ball down a long, narrow half-pipe. A weightless dot would ping-pong from wall to wall and creep forward slowly. A heavy ball, though, keeps rolling in whatever direction it's already going — the side-to-side wobbles cancel out because it can't change direction instantly, while its speed down the pipe just keeps building.</p>
+      <p>Momentum gives the optimizer that heaviness. It remembers where it was heading and keeps some of that motion, so back-and-forth wobbles average away and steady downhill progress speeds up. Nesterov momentum is a slightly smarter ball: before it fully commits to a step, it peeks a little ahead to where its speed is carrying it and checks the slope <b>there</b>, so it brakes earlier and overshoots less.</p>
+    </div>
+
+    <div class="eqn"><span class="lbl">Momentum (velocity v, coefficient β)</span><br>
+      <b>v ← βv − ε∇J(θ)</b> ;&nbsp; θ ← θ + v &nbsp;&nbsp;&nbsp;&nbsp;<span class="lbl">Nesterov: evaluate the gradient at the look-ahead point</span><br>
+      v ← βv − ε∇J(<b>θ + βv</b>) ;&nbsp; θ ← θ + v</div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panel-t">What β buys you</div>
+        <ul class="kl">
+          <li><b>β = 0 = </b>ordinary SGD, no memory.</li>
+          <li><b>β ≈ 0.9 = </b>the effective step is up to 1/(1−β) ≈ 10× the raw gradient step in consistent directions — a big speed-up along the valley floor.</li>
+          <li><b>Cancels oscillation = </b>gradients that flip sign each step average toward zero, damping the zig-zag across the walls.</li>
+          <li><b>Too high = </b>β near 1 can overshoot and orbit the minimum; it trades responsiveness for smoothing.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <div class="panel-t">Nesterov's twist</div>
+        <p style="font-size:14.5px">Standard momentum evaluates the gradient where it <b>currently</b> stands, then adds velocity. Nesterov first jumps ahead by the velocity, <b>then</b> measures the gradient — a partial look into the future.</p>
+        <p style="font-size:14.5px;color:var(--ink2)">That foresight lets it correct an about-to-overshoot step one iteration sooner, giving smoother, often faster convergence on well-behaved (convex) problems for the same β.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Race lab <small>Same start, same rate — SGD vs Momentum vs Nesterov</small></div>
+      <div class="grid-lab">
+        <div class="cv"><canvas id="momCv" width="440" height="330"></canvas><div class="cv-cap">Ill-conditioned bowl. Grey = plain SGD, violet = momentum, teal = Nesterov.</div></div>
+        <div>
+          <div class="slider"><div class="field"><label>Learning rate ε</label><input type="range" id="momLr" min="1" max="60" value="18"></div><output id="momLro" class="mono">0.018</output></div>
+          <div class="slider"><div class="field"><label>Momentum β</label><input type="range" id="momB" min="0" max="98" value="90"></div><output id="momBo" class="mono">0.90</output></div>
+          <div class="reads">
+            <div class="read"><i>SGD steps to min</i><b id="momSgd">—</b></div>
+            <div class="read pri"><i>Momentum steps</i><b id="momMom">—</b></div>
+            <div class="read good"><i>Nesterov steps</i><b id="momNes">—</b></div>
+          </div>
+          <p style="font-size:13px;color:var(--ink2);margin-top:8px">"Steps to min" counts iterations until the path lands within a small radius of the optimum (— means it hadn't converged within the budget). Push β up and watch momentum and Nesterov streak down the valley while SGD still zig-zags.</p>
+        </div>
+      </div>
+      <div class="note"><b>Read the paths.</b> SGD (grey) bounces wall-to-wall; momentum (violet) smooths those bounces into a fast glide; Nesterov (teal) hugs the floor even tighter by braking early. All three share the exact same learning rate.</div>
+    </div>
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">The default pairing</span></div>
+      <p>"SGD" in a deep-learning paper almost always means <b>SGD with momentum</b>, β ≈ 0.9. It's the standard training recipe for convolutional networks and still competitive with adaptive methods on generalization.</p>
+      <p>Nesterov momentum is a drop-in upgrade offered by every framework; it tends to help most on smoother problems and is essentially free.</p>
+      <div class="case"><b>Where it shows up:</b> <span class="mono">torch.optim.SGD(..., momentum=0.9, nesterov=True)</span> — one line, large payoff.</div>
+    </div>
+  </section>
+
+  <!-- ================= 06 INITIALIZATION ================= -->
+  <section class="leg" id="l6">
+    <div class="leg-head"><div class="leg-no">06</div><div>
+      <div class="leg-kicker">Where you start matters · §8.4</div><h2>Parameter Initialization Strategies</h2></div></div>
+
+    <p class="lede">A deep network is exquisitely sensitive to its starting weights. Start them all equal and every unit in a layer stays identical forever — no learning. Start them too large and activations saturate or explode; too small and the signal fades to nothing. Good initialization sets the scale so that the variance of activations (and of gradients) is <b>preserved</b> from layer to layer.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> imagine a relay race where each runner passes a baton. If everyone runs at the exact same speed in the exact same way, they're indistinguishable — the team can never figure out who should specialise in what. And if each hand-off either drops the baton (too weak) or hurls it out of the stadium (too strong), the race falls apart.</p>
+      <p>Setting a network's starting weights is choosing how that first hand-off goes. We give each weight a small <b>random</b> value so no two units start identical — that's "breaking symmetry," which lets them learn different features. And we tune the <b>size</b> of those random values just right, so the signal is passed hand-to-hand at a steady strength all the way through, neither fading out nor blowing up.</p>
+    </div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panel-t">The two jobs of initialization</div>
+        <ul class="kl">
+          <li><b>Break symmetry = </b>weights must be random, not constant. If two units in a layer start identical and see the same input, they receive identical gradients and stay clones forever. Never initialize all weights to zero.</li>
+          <li><b>Preserve variance = </b>scale the random weights so a signal's variance stays roughly constant through the layers — the antidote to the vanishing/exploding problem of station 03.</li>
+          <li><b>Biases = </b>usually fine at 0 (or a small positive value for ReLU to keep units active early).</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <div class="panel-t">Xavier / Glorot vs He</div>
+        <div class="eqn" style="font-size:13.5px">Xavier (tanh/sigmoid): Var(W) = <b>2 / (n<sub>in</sub> + n<sub>out</sub>)</b></div>
+        <div class="eqn" style="font-size:13.5px">He (ReLU): Var(W) = <b>2 / n<sub>in</sub></b></div>
+        <p style="font-size:14px;color:var(--ink2)">Both scale the weight variance inversely with fan-in so that summing many inputs doesn't inflate the variance. He uses a factor of 2 to compensate for ReLU zeroing out half its inputs.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Variance-propagation lab <small>Watch activation spread across 12 layers</small></div>
+      <div class="grid-lab">
+        <div>
+          <div class="slider"><div class="field"><label>Init weight std (× the "just right" value)</label><input type="range" id="inScale" min="20" max="220" value="100"></div><output id="inScaleo" class="mono">1.00×</output></div>
+          <div class="ctl" id="inAct"></div>
+          <div class="reads">
+            <div class="read pri"><i>Activation std at final layer</i><b id="inFinal">—</b></div>
+            <div class="read good"><i>Regime</i><b id="inReg" style="font-size:15px">—</b></div>
+          </div>
+        </div>
+        <div>
+          <p style="font-size:13px;color:var(--ink2);margin:0 0 6px" class="mono">TYPICAL ACTIVATION SPREAD, LAYER 1 → 12</p>
+          <div id="inBars"></div>
+          <p style="font-size:13px;color:var(--ink2);margin-top:8px" id="inMsg">—</p>
+        </div>
+      </div>
+      <div class="note"><b>Aim flat.</b> At 1.00× (the He/Xavier scale) the bars stay level — variance preserved. Turn the scale down and the signal collapses toward zero (vanishing); turn it up and the bars blow up off the chart (exploding).</div>
+    </div>
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">Framework defaults</span></div>
+      <p>You rarely hand-code this: <b>He initialization</b> is the default for ReLU networks and <b>Xavier/Glorot</b> for tanh-style ones in every major library. Getting it wrong is a classic reason a from-scratch network "won't train" — the loss just sits flat.</p>
+      <p>Modern architectures lean on <b>normalization layers</b> (batch/layer norm) to make training far more forgiving of the initial scale, but a sane init still helps, especially early on.</p>
+      <div class="case"><b>Where it shows up:</b> <span class="mono">nn.init.kaiming_normal_</span> (He) and <span class="mono">nn.init.xavier_uniform_</span> — matched to your activation function.</div>
+    </div>
+  </section>
+
+  <!-- ================= 07 ADAPTIVE RATES ================= -->
+  <section class="leg" id="l7">
+    <div class="leg-head"><div class="leg-no">07</div><div>
+      <div class="leg-kicker">A rate per parameter · §8.5</div><h2>Adaptive Learning Rates — AdaGrad, RMSProp, Adam</h2></div></div>
+
+    <p class="lede">A single global learning rate is a compromise: too big for steep parameters, too small for flat ones. Adaptive methods give <b>each parameter its own effective step size</b>, automatically shrinking the step for directions with large, frequent gradients and enlarging it for rarely-updated ones. AdaGrad started the family; RMSProp fixed its fatal flaw; Adam added momentum and became the default.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> imagine steering a shopping trolley with one wobbly wheel that pulls hard to the left and one stiff wheel that barely turns. Using the same amount of force on both is silly — you want to nudge the stiff wheel a lot and the wobbly one only gently. Adaptive methods keep a little notebook on each wheel: "this one has been jerking around a lot, so ease off; that one hardly moves, so push harder."</p>
+      <p>The "notebook" is a running tally of how big each parameter's gradients have been. <b>AdaGrad</b> adds every past gradient into the tally, so steps only ever get smaller — great at first, but eventually everything grinds to a halt. <b>RMSProp</b> lets old entries fade so the tally reflects the recent past and never freezes. <b>Adam</b> keeps two notebooks — one for recent speed (momentum) and one for recent bumpiness (RMSProp) — which is why it's the popular default.</p>
+    </div>
+
+    <div class="eqn"><span class="lbl">The shared idea — scale each step by its own gradient history</span><br>
+      AdaGrad: r ← r + g² &nbsp;·&nbsp; RMSProp: r ← ρr + (1−ρ)g² &nbsp;·&nbsp; step = −ε · g / (√r + δ)<br>
+      Adam: s ← β₁s + (1−β₁)g (momentum), r ← β₂r + (1−β₂)g² ⟹ <b>θ ← θ − ε · s&#770; / (√r&#770; + δ)</b></div>
+
+    <div class="three">
+      <div class="panel">
+        <div class="panel-t">AdaGrad</div>
+        <p style="font-size:14px">Accumulates the <b>sum</b> of squared gradients. Excellent for sparse features (rare directions keep a big step), but the denominator only grows, so the effective rate decays monotonically and can stop learning too early.</p>
+      </div>
+      <div class="panel">
+        <div class="panel-t">RMSProp</div>
+        <p style="font-size:14px">Replaces the sum with an <b>exponentially decaying average</b> (ρ ≈ 0.9). Old gradients fade, so the step size adapts to the recent landscape and never permanently freezes — the workhorse fix to AdaGrad.</p>
+      </div>
+      <div class="panel">
+        <div class="panel-t">Adam</div>
+        <p style="font-size:14px">RMSProp <b>+ momentum</b>, with bias-correction on both moving averages. Robust default hyperparameters (β₁=0.9, β₂=0.999) make it the go-to for most models out of the box.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Optimizer race <small>Steep in one axis, flat in the other — who reaches the star?</small></div>
+      <div class="grid-lab">
+        <div class="cv"><canvas id="adCv" width="440" height="330"></canvas><div class="cv-cap">Elongated bowl (steep w₂, flat w₁). Paths from the same corner start.</div></div>
+        <div>
+          <div class="ctl" id="adCtl"></div>
+          <div class="slider"><div class="field"><label>Base learning rate ε</label><input type="range" id="adLr" min="1" max="120" value="45"></div><output id="adLro" class="mono">0.045</output></div>
+          <div class="reads">
+            <div class="read pri"><i>Steps to reach min</i><b id="adSteps">—</b></div>
+            <div class="read good"><i>Optimizer</i><b id="adName" style="font-size:15px">—</b></div>
+          </div>
+          <div class="ctl" style="margin-top:8px"><button class="chip mag" id="adRun">Run race</button></div>
+          <p style="font-size:13px;color:var(--ink2);margin-top:8px" id="adMsg">Plain SGD crawls along the flat w₁ direction while ping-ponging in the steep w₂ direction. Adaptive methods equalize the two axes and drive almost straight to the star.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panel-t">Which to reach for</div>
+        <ul class="kl">
+          <li><b>Adam = </b>the safe default — fast, forgiving, great for Transformers, GANs, RL, and anything you want to train without babysitting the schedule.</li>
+          <li><b>SGD + momentum = </b>often the best <i>final</i> accuracy on vision when you can afford to tune the schedule; adaptive methods can generalize slightly worse.</li>
+          <li><b>RMSProp = </b>a solid choice for recurrent nets and non-stationary objectives.</li>
+          <li><b>AdamW = </b>Adam with decoupled weight decay — now standard for large-model training.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <div class="panel-t">No free lunch</div>
+        <p style="font-size:14.5px">Adaptive methods converge fast but the minimum they find can generalize a touch worse than well-tuned SGD+momentum. There is <b>no single best optimizer</b> across all problems.</p>
+        <p style="font-size:14.5px;color:var(--ink2)">Practical advice: start with Adam to get moving quickly; if you're chasing the last fraction of accuracy on a vision benchmark, try tuned SGD+momentum with a good schedule.</p>
+      </div>
+    </div>
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">The modern default</span></div>
+      <p><b>Adam (and AdamW)</b> trains the overwhelming majority of large models today — language models, diffusion models, most research prototypes — because it "just works" with little tuning.</p>
+      <p>Its adaptivity is especially valuable when gradients vary wildly in scale across parameters, as they do in the embedding-plus-attention stacks of large Transformers.</p>
+      <div class="case"><b>Where it shows up:</b> <span class="mono">torch.optim.AdamW(model.parameters(), lr=3e-4)</span> — the "3e-4 and Adam" folk default of deep learning.</div>
+    </div>
+  </section>
+  <!-- ================= 08 GREEDY PRETRAINING ================= -->
+  <section class="leg" id="l8">
+    <div class="leg-head"><div class="leg-no">08</div><div>
+      <div class="leg-kicker">One layer at a time · §8.7.4</div><h2>Greedy Layer-Wise Pretraining</h2></div></div>
+
+    <p class="lede">Before good initialization and activations tamed deep training, there was a clever workaround: don't train the deep network all at once. Train it <b>one layer at a time</b>, each layer learning to represent the output of the layer below (often unsupervised), then stack them and fine-tune the whole thing end-to-end. It's called <i>greedy</i> because each layer is optimized on its own, and <i>layer-wise</i> because layers are added one by one.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> you can't build a tall tower of blocks in one heroic move — it topples. So you build it one floor at a time: lay the ground floor and make it solid, then build the next floor on top, then the next. Only once the whole tower stands do you go back and gently adjust every floor so they line up perfectly.</p>
+      <p>Greedy layer-wise pretraining builds a deep network the same patient way. First it teaches the bottom layer to find simple patterns (like edges in a picture). Then it freezes that and teaches the next layer to combine those into bigger patterns, and so on up the stack. Once all the floors are in place, a final <b>fine-tuning</b> pass nudges everything together toward the actual task. It was the trick that first made very deep networks trainable.</p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">The two-phase recipe</div>
+      <div class="pipe">
+        <b>x</b><span>→</span><b>Train layer 1</b><span>→</span><b>Freeze · train layer 2</b><span>→</span><b>Freeze · train layer 3</b><span>→</span><b>Stack all</b><span>→</span><b>Fine-tune end-to-end</b>
+      </div>
+      <div class="two" style="margin-top:6px">
+        <div>
+          <p style="font-size:14.5px"><b>Phase 1 — pretraining.</b> Each layer is trained greedily, usually as an autoencoder or RBM, to reconstruct or model its input. The learned weights become the initialization for that layer.</p>
+        </div>
+        <div>
+          <p style="font-size:14.5px"><b>Phase 2 — fine-tuning.</b> The pretrained layers are assembled into one deep network and trained together with ordinary supervised backprop, now starting from a much better point than random.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Why it helped <small>Two complementary effects</small></div>
+      <div class="two">
+        <div>
+          <ul class="kl">
+            <li><b>Better optimization = </b>each layer starts in a sensible region, so the deep net avoids the worst plateaus and vanishing-gradient stalls of a cold random start.</li>
+            <li><b>Regularization = </b>unsupervised pretraining biases the weights toward structure that explains the <i>input</i> distribution, which often transfers to the supervised task and reduces overfitting — most valuable when labels are scarce.</li>
+          </ul>
+        </div>
+        <div>
+          <div class="panel-t" style="border:0;padding:0;margin-bottom:8px">Effect on a small-label task <small>Illustrative</small></div>
+          <div class="tvbar"><span>Random init</span><div class="tr"><div class="fl warn" style="width:52%"></div></div><b>52%</b></div>
+          <div class="tvbar"><span>+ Pretraining</span><div class="tr"><div class="fl pri" style="width:74%"></div></div><b>74%</b></div>
+          <div class="tvbar"><span>Lots of labels</span><div class="tr"><div class="fl" style="width:88%"></div></div><b>88%</b></div>
+          <p style="font-size:12.5px;color:var(--ink2);margin-top:8px">Pretraining's edge is largest in the low-label regime; with abundant labels and modern initialization, the gap mostly closes.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">From workaround to transfer learning</span></div>
+      <p>Pure greedy unsupervised pretraining faded once ReLUs, He/Xavier init, batch norm and residual connections let deep nets train from scratch. But its <b>core idea never left</b>: initialize from a model that already learned useful structure.</p>
+      <p>That idea is now <b>transfer learning</b> and <b>self-supervised pretraining</b> — pretrain a big model on masses of unlabeled data, then fine-tune on your task. Every fine-tuned language or vision model is greedy pretraining's intellectual descendant, scaled up.</p>
+      <div class="case"><b>Where it shows up:</b> fine-tuning pretrained Transformers and vision backbones; the "pretrain then adapt" paradigm that dominates modern practice.</div>
+    </div>
+  </section>
+
+  <!-- ================= 09 ADVERSARIAL TRAINING ================= -->
+  <section class="leg" id="l9">
+    <div class="leg-head"><div class="leg-no">09</div><div>
+      <div class="leg-kicker">Train against the worst case · §7.13</div><h2>Adversarial Training</h2></div></div>
+
+    <p class="lede">Even a highly accurate network can be fooled by an input perturbation so small a human can't see it. These <b>adversarial examples</b> exploit the network's near-linear behaviour in high dimensions: many tiny, aligned nudges add up to a big change in the output. Adversarial training fights back by generating these attacks during training and forcing the model to classify them correctly — hardening it and, as a bonus, regularizing it.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> imagine a test where a sneaky classmate is allowed to change your answer sheet by the tiniest amount right before grading — flipping a decimal, smudging a digit — just enough to turn a right answer wrong. If you only ever practise on clean sheets, you'll be helpless against the sneak. But if you practise <b>with</b> the sneak messing things up, you learn to give answers that are robust to a little tampering.</p>
+      <p>Adversarial training is practising with that sneak. During learning, the computer deliberately builds the most confusing tiny change to each example — a nudge you'd never notice with your eyes — and then insists the model still gets it right. Doing this over and over makes the model steadier: it stops relying on flimsy, easily-nudged clues and learns sturdier ones.</p>
+    </div>
+
+    <div class="eqn"><span class="lbl">Fast Gradient Sign Method (FGSM) — the classic one-step attack</span><br>
+      x<sub>adv</sub> = x + <b>ε · sign( ∇<sub>x</sub> L(f(x), y) )</b> &nbsp;&nbsp;— nudge every input pixel by ε in the direction that most increases the loss</div>
+
+    <div class="panel">
+      <div class="panel-t">FGSM lab <small>A tiny push across the boundary flips the label</small></div>
+      <div class="grid-lab">
+        <div class="cv"><canvas id="advCv" width="440" height="330"></canvas><div class="cv-cap">A linear classifier's boundary; ● = clean point, ○ = adversarial point at distance ε.</div></div>
+        <div>
+          <div class="slider"><div class="field"><label>Perturbation budget ε</label><input type="range" id="advEps" min="0" max="140" value="0"></div><output id="advEpso" class="mono">0.00</output></div>
+          <div class="reads">
+            <div class="read good"><i>Clean prediction</i><b id="advClean" style="font-size:16px">—</b></div>
+            <div class="read bad"><i>Adversarial prediction</i><b id="advAdv" style="font-size:16px">—</b></div>
+            <div class="read pri"><i>Model confidence (adv)</i><b id="advConf">—</b></div>
+          </div>
+          <div class="ctl" style="margin-top:8px"><button class="chip mag" id="advTrain">Toggle adversarial training</button></div>
+          <p style="font-size:13px;color:var(--ink2);margin-top:8px" id="advMsg">Raise ε until the hollow point crosses the boundary — the prediction flips even though the move is tiny. Then toggle adversarial training and watch the boundary pull back to a safer margin.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panel-t">Why tiny nudges work</div>
+        <ul class="kl">
+          <li><b>Linearity in high dimensions = </b>a network is locally near-linear, so a perturbation of ε per input, summed over thousands of inputs, shifts the pre-activation by a large amount.</li>
+          <li><b>Aligned with the gradient = </b>the sign() attack points every pixel the exact way that raises the loss, so the nudges reinforce rather than cancel.</li>
+          <li><b>Transferability = </b>adversarial examples often fool <i>other</i> models too, enabling black-box attacks — a real security concern.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <div class="panel-t">What training on them buys</div>
+        <ul class="kl">
+          <li><b>Robustness = </b>the model classifies correctly within an ε-ball around each example, resisting the attack it was trained against.</li>
+          <li><b>Regularization = </b>demanding a locally constant output smooths the decision surface, which can improve ordinary generalization too.</li>
+          <li><b>The cost = </b>generating attacks each step is expensive, and robustness to one attack doesn't guarantee robustness to all — it remains an active arms race.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">Safety &amp; security</span></div>
+      <p>Adversarial robustness matters wherever a mistake is exploitable: <b>self-driving perception</b> (a doctored stop sign), <b>malware and spam filters</b>, biometric and content-moderation systems. Attackers actively probe these models.</p>
+      <p>Multi-step attacks like <b>PGD</b> (iterated FGSM) are the standard strong benchmark, and PGD-based adversarial training is the leading practical defence — though robust accuracy still lags clean accuracy, keeping this a live research frontier.</p>
+      <div class="case"><b>Where it shows up:</b> robustness benchmarks, security-critical vision systems, and as a general-purpose regularizer that enforces local smoothness.</div>
+    </div>
+  </section>
+
+  <!-- ================= 10 REVISION + TAKEAWAYS ================= -->
+  <section class="leg" id="l10">
+    <div class="leg-head"><div class="leg-no">Σ</div><div>
+      <div class="leg-kicker">Consolidate · then carry off the map</div><h2>Revision, Quiz &amp; Key Takeaways</h2></div></div>
+
+    <p class="lede">Twelve checks across the descent route — from the learning-vs-optimization mismatch through SGD, momentum, initialization, adaptive rates, pretraining and adversarial training. Pick an answer to see the reasoning.</p>
+
+    <div class="panel">
+      <div class="panel-t">Self-test <small><span id="score">0 / 12</span> correct</small></div>
+      <div id="quiz"></div>
+      <div class="ctl" style="margin-top:14px"><button class="chip mag" id="qReset">Reset quiz</button></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Likely long-answer questions</div>
+      <ul class="kl">
+        <li>Explain three concrete ways in which training a neural network differs from pure optimization. Why must we optimize a surrogate loss rather than the metric we care about?</li>
+        <li>List the major challenges of neural-network optimization. Why are saddle points a bigger problem than local minima in high dimensions?</li>
+        <li>Derive why gradients vanish or explode with depth. How do activation choice and initialization each address it?</li>
+        <li>Write the SGD update. Why is a decaying learning-rate schedule needed, and what role does minibatch noise play?</li>
+        <li>Give the momentum and Nesterov-momentum update equations. Explain how momentum accelerates progress on an ill-conditioned objective, and how Nesterov differs.</li>
+        <li>State the goals of parameter initialization. Contrast Xavier/Glorot and He initialization and explain the fan-in scaling.</li>
+        <li>Compare AdaGrad, RMSProp and Adam. What flaw of AdaGrad does RMSProp fix, and what does Adam add on top?</li>
+        <li>Describe greedy layer-wise pretraining and its two benefits. How does it relate to modern transfer learning?</li>
+        <li>What is an adversarial example, and why do imperceptible perturbations fool a network? Write the FGSM attack and explain adversarial training.</li>
+      </ul>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Glossary <small>Click any dotted term anywhere on the page</small></div>
+      <input class="search" id="glossQ" type="search" placeholder="Filter terms — try 'saddle' or 'adam'">
+      <div class="gloss no-abbr" id="gloss"></div>
+    </div>
+
+    <div class="headline">
+      <h3>If you remember only one thing</h3>
+      <p>Training a deep net is <b>noisy descent through a hostile high-dimensional landscape</b>. The gradient is estimated (SGD), consistent directions are worth accelerating (momentum), each parameter deserves its own step (Adam), and where you start (initialization) decides whether the signal even survives the depth. Everything else — pretraining, adversarial hardening — is buying a better starting point or a smoother surface.</p>
+    </div>
+
+    <div class="tk">
+      <div class="tk-item"><i>01</i><div><h4>Optimize a proxy</h4>
+        <p>We minimize empirical risk with a smooth surrogate loss, then early-stop on a validation metric — not the training loss.</p></div></div>
+      <div class="tk-item"><i>02</i><div><h4>Saddles, not minima</h4>
+        <p>The real obstacles are saddle points, plateaus, ill-conditioning and cliffs — most local minima are nearly as good as the global one.</p></div></div>
+      <div class="tk-item"><i>03</i><div><h4>Depth multiplies signals</h4>
+        <p>Gradients scale like (w·σ′)^L. Below 1 they vanish, above 1 they explode; ReLU, good init, norm and residuals keep the factor near 1.</p></div></div>
+      <div class="tk-item"><i>04</i><div><h4>SGD: cheap, noisy steps</h4>
+        <p>Minibatch gradients give many fast steps; the noise aids exploration but forces a decaying learning rate to settle.</p></div></div>
+      <div class="tk-item"><i>05</i><div><h4>Momentum builds velocity</h4>
+        <p>v ← βv − ε∇J accelerates consistent directions and cancels oscillation; Nesterov looks ahead to brake earlier.</p></div></div>
+      <div class="tk-item"><i>06</i><div><h4>Init breaks symmetry &amp; keeps variance</h4>
+        <p>Random weights (never all-zero) scaled by fan-in — Xavier for tanh, He for ReLU — preserve signal through the layers.</p></div></div>
+      <div class="tk-item"><i>07</i><div><h4>Adam: a rate per parameter</h4>
+        <p>RMSProp's decaying gradient-square average plus momentum, bias-corrected. The forgiving default; tuned SGD can still win on vision.</p></div></div>
+      <div class="tk-item"><i>08</i><div><h4>Pretrain, then adapt</h4>
+        <p>Greedy layer-wise pretraining gave deep nets a good start; its idea lives on as transfer and self-supervised learning.</p></div></div>
+    </div>
+
+    <div class="foot no-abbr">
+      <span>CHAPTER 8 · OPTIMIZATION FOR TRAINING DEEP MODELS</span>
+      <span>9 STATIONS · 8 LIVE LABS · EVERYTHING COMPUTED IN YOUR BROWSER</span>
+      <span>WALK THE DESCENT ROUTE AGAIN BEFORE THE EXAM</span>
+    </div>
+  </section>
+
+  </main>
+</div>
+<script>
+(function(){
+"use strict";
+const $=(s,r)=>(r||document).querySelector(s), $$=(s,r)=>[...(r||document).querySelectorAll(s)];
+const fmt=(n,d)=>Number(n).toFixed(d===undefined?1:d);
+const NS="http://www.w3.org/2000/svg";
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+/* ---------- hero waypoints ---------- */
+const wpPts=[[140,180],[250,280],[340,286],[430,262],[520,250],[620,278],[720,300],[820,280],[900,165]];
+const wpNames=["Learning≠optim","Challenges","Deep difficulty","SGD","Momentum","Init","Adam","Pretraining","Adversarial"];
+const wpsG=$("#wps");
+wpPts.forEach((p,i)=>{
+  const g=document.createElementNS(NS,"g");
+  g.setAttribute("class","wp"); g.setAttribute("tabindex","0"); g.setAttribute("role","link");
+  g.setAttribute("aria-label","Station "+(i+1)+": "+wpNames[i]);
+  g.innerHTML='<circle class="hit" cx="'+p[0]+'" cy="'+p[1]+'" r="12" fill="#F7F8F3" fill-opacity=".01"/>'+
+    '<circle cx="'+p[0]+'" cy="'+p[1]+'" r="6.5" fill="#F7F8F3" stroke="#14171B" stroke-width="1.6"/>'+
+    '<circle cx="'+p[0]+'" cy="'+p[1]+'" r="2.4" fill="#6C30D9"/>'+
+    '<text x="'+p[0]+'" y="'+(p[1]-13)+'" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9.5" fill="#14171B">'+String(i+1).padStart(2,"0")+'</text>';
+  const go=()=>{const el=document.getElementById("l"+(i+1)); if(el) el.scrollIntoView({block:"start"});};
+  g.addEventListener("click",go);
+  g.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();go();}});
+  wpsG.appendChild(g);
+});
+
+/* ---------- rail + progress ---------- */
+const legs=$$(".leg"), links=$$("#rail a");
+function onScroll(){
+  const y=window.scrollY+140; let idx=0;
+  legs.forEach((l,i)=>{ if(l.offsetTop<=y) idx=i; });
+  links.forEach((a,i)=>a.classList.toggle("on",i===idx));
+  const d=document.documentElement;
+  const p=Math.min(100,Math.max(0,(window.scrollY/(d.scrollHeight-d.clientHeight))*100));
+  $("#progFill").style.width=p+"%"; $("#progTxt").textContent=Math.round(p)+"%";
+}
+window.addEventListener("scroll",onScroll,{passive:true}); onScroll();
+
+const railEl=$("#rail"),hamEl=$("#ham"),railBg=$("#railBg");
+function railSet(open){
+  railEl.classList.toggle("open",open);
+  hamEl.classList.toggle("open",open);
+  railBg.classList.toggle("on",open);
+  hamEl.setAttribute("aria-expanded",open?"true":"false");
+  document.body.style.overflow=open?"hidden":"";
+}
+hamEl.addEventListener("click",()=>railSet(!railEl.classList.contains("open")));
+$("#railX").addEventListener("click",()=>railSet(false));
+railBg.addEventListener("click",()=>railSet(false));
+document.addEventListener("keydown",e=>{if(e.key==="Escape")railSet(false);});
+links.forEach(aEl=>aEl.addEventListener("click",()=>railSet(false)));
+
+/* seeded RNG for reproducible "noise" */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function gauss(rng){let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+
+/* ================= chip group helper ================= */
+function chipGroup(host,labels,initial,onPick){
+  const el=$(host); el.innerHTML="";
+  const btns=labels.map((lb,i)=>{
+    const b=document.createElement("button");
+    b.className="chip"+(i===initial?" mag on":""); b.textContent=lb;
+    b.addEventListener("click",()=>{btns.forEach(x=>x.classList.remove("on"));b.classList.add("on");onPick(i);});
+    el.appendChild(b); return b;
+  });
+  return btns;
+}
+
+/* ================= ST01 surrogate loss bench ================= */
+(function(){
+  const cv=$("#surCv"),cx=cv.getContext("2d"),W=cv.width,H=cv.height;
+  const show={zo:true,log:true,hinge:true,sq:true};
+  const el=$("#surCtl");
+  [["0–1","zo","#4B515A"],["Log","log","#6C30D9"],["Hinge","hinge","#0F7C87"],["Squared","sq","#C81C6E"]].forEach(t=>{
+    const b=document.createElement("button");b.className="chip on";b.textContent=t[0];b.style.borderColor=t[2];
+    b.addEventListener("click",()=>{show[t[1]]=!show[t[1]];b.classList.toggle("on");draw();});
+    el.appendChild(b);
+  });
+  const m0=-3,m1=3,y1=3.2;
+  const X=m=>40+(m-m0)/(m1-m0)*(W-60), Y=v=>H-30-(v/y1)*(H-50);
+  function curve(fn,col,w,dash){cx.strokeStyle=col;cx.lineWidth=w;cx.setLineDash(dash||[]);cx.beginPath();
+    for(let i=0;i<=240;i++){const m=m0+(m1-m0)*i/240,v=clamp(fn(m),0,y1);const px=X(m),py=Y(v);i===0?cx.moveTo(px,py):cx.lineTo(px,py);}
+    cx.stroke();cx.setLineDash([]);}
+  function draw(){
+    cx.clearRect(0,0,W,H);cx.fillStyle="#fff";cx.fillRect(0,0,W,H);
+    cx.strokeStyle="#d5d8d0";cx.lineWidth=1;cx.beginPath();cx.moveTo(X(m0),Y(0));cx.lineTo(X(m1),Y(0));cx.stroke();
+    cx.strokeStyle="#c9ccc4";cx.setLineDash([4,4]);cx.beginPath();cx.moveTo(X(0),Y(0));cx.lineTo(X(0),Y(y1));cx.stroke();cx.setLineDash([]);
+    cx.fillStyle="#9aa";cx.font="10px 'IBM Plex Mono',monospace";
+    cx.fillText("loss",6,Y(y1)+10); cx.fillText("margin m = y·f(x)",X(m1)-118,Y(0)+18); cx.fillText("m=0",X(0)+4,Y(0)+18);
+    cx.fillStyle="#0F7C87";cx.fillText("correct →",X(1.4),Y(0)+18); cx.fillStyle="#C81C6E";cx.fillText("← wrong",X(-2.4),Y(0)+18);
+    if(show.zo) curve(m=>m<0?1:0,"#4B515A",1.8,[6,4]);
+    if(show.log) curve(m=>Math.log(1+Math.exp(-m))/Math.LN2,"#6C30D9",2.4);
+    if(show.hinge) curve(m=>Math.max(0,1-m),"#0F7C87",2.2);
+    if(show.sq) curve(m=>Math.pow(1-m,2),"#C81C6E",2.2);
+  }
+  draw();
+})();
+
+/* ================= ST02 landscape lab ================= */
+(function(){
+  const S=s=>1/(1+Math.exp(-s));
+  const terrains=[
+    {n:"Bowl",f:x=>0.5*x*x,g:x=>x,x0:-2.4,min:0,kind:"bowl"},
+    {n:"Plateau",f:x=>0.9*S(2.6*(x-0.6))+0.06*x*x,g:x=>0.9*2.6*S(2.6*(x-0.6))*(1-S(2.6*(x-0.6)))+0.12*x,x0:-2.3,min:-0.4,kind:"plateau"},
+    {n:"Two minima",f:x=>0.16*Math.pow(x*x-2.3,2)+0.22*x,g:x=>0.16*2*(x*x-2.3)*2*x+0.22,x0:1.95,min:-1.55,kind:"double"},
+    {n:"Cliff",f:x=>0.32*x*x+2.6*S(8*(x-1.35)),g:x=>0.64*x+2.6*8*S(8*(x-1.35))*(1-S(8*(x-1.35))),x0:1.55,min:0,kind:"cliff"}
+  ];
+  let ti=0, x=terrains[0].x0, steps=0, anim=null, running=false;
+  const cv=$("#landCv"),cx=cv.getContext("2d"),W=cv.width,Hh=cv.height;
+  chipGroup("#landCtl",terrains.map(t=>t.n),0,i=>{ti=i;reset();});
+  const xmin=-3,xmax=3;
+  let ymax=3;
+  function computeYmax(){let mx=0.5;for(let i=0;i<=120;i++){const xx=xmin+(xmax-xmin)*i/120;mx=Math.max(mx,terrains[ti].f(xx));}ymax=mx*1.1;}
+  const X=x=>40+(x-xmin)/(xmax-xmin)*(W-60), Y=v=>Hh-26-(v/ymax)*(Hh-46);
+  function draw(){
+    const T=terrains[ti];
+    cx.clearRect(0,0,W,Hh);cx.fillStyle="#fff";cx.fillRect(0,0,W,Hh);
+    cx.strokeStyle="#d5d8d0";cx.lineWidth=1;cx.beginPath();cx.moveTo(X(xmin),Y(0));cx.lineTo(X(xmax),Y(0));cx.stroke();
+    cx.strokeStyle="#0F7C87";cx.lineWidth=2.4;cx.beginPath();
+    for(let i=0;i<=200;i++){const xx=xmin+(xmax-xmin)*i/200,px=X(xx),py=Y(clamp(T.f(xx),0,ymax));i===0?cx.moveTo(px,py):cx.lineTo(px,py);}
+    cx.stroke();
+    // ball
+    const bx=X(clamp(x,xmin,xmax)),by=Y(clamp(T.f(clamp(x,xmin,xmax)),0,ymax));
+    cx.fillStyle="#C81C6E";cx.beginPath();cx.arc(bx,by,7,0,7);cx.fill();
+    cx.fillStyle="#4B515A";cx.font="10px 'IBM Plex Mono',monospace";cx.fillText("loss",6,Y(ymax)+10);cx.fillText("θ",X(xmax)-10,Y(0)+16);
+    const gAbs=Math.abs(T.g(clamp(x,xmin,xmax)));
+    $("#landGrad").textContent=fmt(gAbs,3);
+    $("#landSteps").textContent=steps;
+  }
+  function status(){
+    const T=terrains[ti], gAbs=Math.abs(T.g(x));
+    if(Math.abs(x)>3.6){return["diverged","The cliff's huge gradient flung the ball out of the valley — this is why cliffs need gradient clipping.","bad"];}
+    if(gAbs<0.02){
+      if(T.kind==="double"&&x>0.5) return["stuck: local min","The ball settled in the shallower right-hand basin — a local minimum above the true optimum on the left.","warn"];
+      if(T.kind==="plateau"&&x<-0.2) return["crawling: plateau","On the flat plateau the gradient is nearly zero, so each step barely moves — progress has stalled.","warn"];
+      return["settled ✓","The gradient is ~0 at a genuine minimum — descent has converged.","good"];
+    }
+    return["moving…","The ball is descending; the gradient bar shows how hard the slope is pushing it.",""];
+  }
+  function updateStatus(){
+    const s=status(); const el=$("#landStat"); el.textContent=s[0];
+    el.parentElement.classList.remove("good","bad","warn");
+    if(s[2]) el.parentElement.classList.add(s[2]);
+    $("#landMsg").textContent=s[1];
+  }
+  function reset(){running=false;if(anim)cancelAnimationFrame(anim);computeYmax();x=terrains[ti].x0;steps=0;draw();updateStatus();}
+  function step(){
+    const T=terrains[ti],lr=(+$("#landLr").value)*0.001;
+    const g=T.g(x); x=x-lr*g; steps++;
+    if(Math.abs(x)>4) x=clamp(x,-4,4);
+  }
+  function run(){
+    if(running){running=false;return;}
+    running=true;
+    function loop(){
+      if(!running)return;
+      for(let k=0;k<2;k++) step();
+      draw();updateStatus();
+      const gAbs=Math.abs(terrains[ti].g(x));
+      if(steps>600||(gAbs<0.02&&steps>6)||Math.abs(x)>3.6){running=false;draw();updateStatus();return;}
+      anim=requestAnimationFrame(loop);
+    }
+    loop();
+  }
+  $("#landRun").addEventListener("click",run);
+  $("#landReset").addEventListener("click",reset);
+  $("#landLr").addEventListener("input",()=>{$("#landLro").textContent=fmt((+$("#landLr").value)*0.001,3);});
+  $("#landLro").textContent=fmt(0.045,3);
+  reset();
+})();
+
+/* ================= ST03 gradient through depth ================= */
+(function(){
+  let act=1; // 0 sigmoid .25, 1 tanh 1, 2 relu 1
+  const slopes=[0.25,1.0,1.0];
+  chipGroup("#vgAct",["Sigmoid (σ′≤0.25)","Tanh (σ′≤1)","ReLU (σ′=1)"],1,i=>{act=i;R();});
+  function R(){
+    const L=+$("#vgL").value, w=(+$("#vgW").value)*0.01, s=slopes[act], f=w*s;
+    $("#vgLo").textContent=L; $("#vgWo").textContent=fmt(w,2);
+    // magnitude relative to output (=1) at layer k counting from output: f^(distance)
+    let html="";
+    for(let layer=L;layer>=1;layer--){ // display output(L) at top → input(1) bottom
+      const dist=L-layer; const mag=Math.pow(f,dist);
+      const logw=(Math.log10(clamp(mag,1e-9,1e9))+9)/18*100; // 50% = mag 1
+      const col = mag<0.5?"rose":(mag>2?"warn":"");
+      const lab=layer===L?("L"+layer+" · output"):("L"+layer);
+      html+='<div class="tvbar"><span>'+lab+'</span><div class="tr"><div class="fl '+col+'" style="width:'+fmt(clamp(logw,1,100),0)+'%"></div></div><b>'+(mag>=1000||mag<0.001?mag.toExponential(1):fmt(mag,3))+'</b></div>';
+    }
+    $("#vgBars").innerHTML=html;
+    const ratio=Math.pow(f,L-1);
+    $("#vgRatio").textContent=(ratio>=1000||ratio<0.001?ratio.toExponential(1):fmt(ratio,3));
+    let reg,msg;
+    if(f<0.98){reg="vanishing";msg="Per-layer factor "+fmt(f,2)+" < 1: the signal shrinks geometrically, so layer 1 gets a gradient "+ (ratio<0.001?ratio.toExponential(1):fmt(ratio,4)) +"× the output's — it barely learns.";}
+    else if(f>1.02){reg="exploding";msg="Per-layer factor "+fmt(f,2)+" > 1: the signal grows geometrically toward the input layers — updates become unstable and can blow up to NaN.";}
+    else {reg="stable ✓";msg="Per-layer factor ≈ "+fmt(f,2)+": the signal is preserved across depth — the goal that good activations, init and residuals all chase.";}
+    const el=$("#vgReg");el.textContent=reg;el.parentElement.classList.remove("good","bad","warn");
+    el.parentElement.classList.add(f<0.98?"bad":(f>1.02?"warn":"good"));
+    $("#vgMsg").textContent=msg;
+  }
+  ["vgL","vgW"].forEach(id=>$("#"+id).addEventListener("input",R)); R();
+})();
+
+/* ================= ST04 SGD sandbox ================= */
+(function(){
+  const cv=$("#sgdCv"),cx=cv.getContext("2d"),W=cv.width,H=cv.height;
+  const a=6,b=1, w0=[-2.4,2.0];
+  const ox=W/2, oy=H/2, sc=54;
+  const X=w=>ox+w*sc, Y=w=>oy-w*sc;
+  function drawContours(){
+    cx.clearRect(0,0,W,H);cx.fillStyle="#fff";cx.fillRect(0,0,W,H);
+    cx.strokeStyle="#e3e5df";cx.lineWidth=1;
+    cx.beginPath();cx.moveTo(X(-3),Y(0));cx.lineTo(X(3),Y(0));cx.moveTo(X(0),Y(-3));cx.lineTo(X(0),Y(3));cx.stroke();
+    [0.4,1.1,2.2,3.7,5.6].forEach(c=>{
+      const rx=Math.sqrt(2*c/a)*sc, ry=Math.sqrt(2*c/b)*sc;
+      cx.strokeStyle="#0F7C87";cx.globalAlpha=.35;cx.lineWidth=1;
+      cx.beginPath();cx.ellipse(X(0),Y(0),rx,ry,0,0,7);cx.stroke();cx.globalAlpha=1;
+    });
+    cx.fillStyle="#0F7C87";cx.beginPath();cx.arc(X(0),Y(0),4,0,7);cx.fill();
+    cx.fillStyle="#4B515A";cx.font="10px 'IBM Plex Mono',monospace";cx.fillText("min",X(0)+7,Y(0)-6);
+  }
+  function run(){
+    const lr=(+$("#sgdLr").value)*0.001, noise=(+$("#sgdNoise").value)*0.01;
+    drawContours();
+    const rng=mulberry32(12345);
+    let w=[w0[0],w0[1]]; const path=[[w[0],w[1]]];
+    for(let s=0;s<60;s++){
+      let g=[a*w[0],b*w[1]];
+      g[0]+=noise*gauss(rng)*2.2; g[1]+=noise*gauss(rng)*2.2;
+      w=[w[0]-lr*g[0],w[1]-lr*g[1]];
+      if(Math.abs(w[0])>6||Math.abs(w[1])>6){path.push([clamp(w[0],-6,6),clamp(w[1],-6,6)]);break;}
+      path.push([w[0],w[1]]);
+    }
+    cx.strokeStyle="#6C30D9";cx.lineWidth=1.8;cx.beginPath();
+    path.forEach((p,i)=>{const px=X(clamp(p[0],-3.3,3.3)),py=Y(clamp(p[1],-3.3,3.3));i===0?cx.moveTo(px,py):cx.lineTo(px,py);});
+    cx.stroke();
+    path.forEach((p,i)=>{if(i%3===0){cx.fillStyle="#6C30D9";cx.beginPath();cx.arc(X(clamp(p[0],-3.3,3.3)),Y(clamp(p[1],-3.3,3.3)),2.2,0,7);cx.fill();}});
+    const last=path[path.length-1], dist=Math.hypot(last[0],last[1]);
+    $("#sgdDist").textContent=fmt(dist,2);
+    let out,cls;
+    if(Math.abs(last[0])>=6||Math.abs(last[1])>=6){out="diverged";cls="bad";}
+    else if(dist<0.25){out="converged ✓";cls="good";}
+    else if(noise>0.05&&dist<0.9){out="rattling in cloud";cls="warn";}
+    else {out="still crawling";cls="warn";}
+    const el=$("#sgdOut");el.textContent=out;el.parentElement.classList.remove("good","bad","warn");el.parentElement.classList.add(cls);
+    $("#sgdMsg").textContent = out==="diverged"
+      ? "The rate is too large for the steep direction — the step overshoots and the path spirals outward."
+      : (noise>0.05? "With batch noise on, the iterate never fully settles: it orbits the minimum in a cloud whose size grows with the noise and the fixed rate."
+                    : "Clean gradients: the path spirals into the minimum. Notice the zig-zag across the steep axis — that's the ill-conditioning momentum will fix next.");
+  }
+  ["sgdLr","sgdNoise"].forEach(id=>$("#"+id).addEventListener("input",()=>{
+    $("#sgdLro").textContent=fmt((+$("#sgdLr").value)*0.001,3);
+    $("#sgdNoiseo").textContent=fmt((+$("#sgdNoise").value)*0.01,2); run();
+  }));
+  $("#sgdRun").addEventListener("click",run);
+  $("#sgdLro").textContent=fmt(0.030,3); $("#sgdNoiseo").textContent=fmt(0.30,2);
+  drawContours(); run();
+})();
+
+/* ================= ST05 momentum race ================= */
+(function(){
+  const cv=$("#momCv"),cx=cv.getContext("2d"),W=cv.width,H=cv.height;
+  const a=8,b=1, start=[-2.5,2.1];
+  const ox=W/2, oy=H/2, sc=52;
+  const X=w=>ox+w*sc, Y=w=>oy-w*sc;
+  function grad(w){return [a*w[0],b*w[1]];}
+  function optimize(kind,lr,beta,N){
+    let w=[start[0],start[1]], v=[0,0]; const path=[[w[0],w[1]]]; let hit=-1;
+    for(let s=1;s<=N;s++){
+      let g;
+      if(kind==="nesterov"){ g=grad([w[0]+beta*v[0],w[1]+beta*v[1]]); }
+      else g=grad(w);
+      if(kind==="sgd"){ w=[w[0]-lr*g[0],w[1]-lr*g[1]]; }
+      else { v=[beta*v[0]-lr*g[0],beta*v[1]-lr*g[1]]; w=[w[0]+v[0],w[1]+v[1]]; }
+      if(!isFinite(w[0])||Math.abs(w[0])>8||Math.abs(w[1])>8){path.push([clamp(w[0],-8,8),clamp(w[1],-8,8)]);break;}
+      path.push([w[0],w[1]]);
+      if(hit<0&&Math.hypot(w[0],w[1])<0.08) hit=s;
+    }
+    return {path,hit};
+  }
+  function drawContours(){
+    cx.clearRect(0,0,W,H);cx.fillStyle="#fff";cx.fillRect(0,0,W,H);
+    cx.strokeStyle="#e3e5df";cx.lineWidth=1;cx.beginPath();cx.moveTo(X(-3),Y(0));cx.lineTo(X(3),Y(0));cx.moveTo(X(0),Y(-3));cx.lineTo(X(0),Y(3));cx.stroke();
+    [0.5,1.3,2.6,4.4,6.6].forEach(c=>{const rx=Math.sqrt(2*c/a)*sc,ry=Math.sqrt(2*c/b)*sc;
+      cx.strokeStyle="#0F7C87";cx.globalAlpha=.3;cx.beginPath();cx.ellipse(X(0),Y(0),rx,ry,0,0,7);cx.stroke();cx.globalAlpha=1;});
+    cx.fillStyle="#0F7C87";cx.beginPath();cx.arc(X(0),Y(0),4,0,7);cx.fill();
+  }
+  function drawPath(path,col,wd,dash){
+    cx.strokeStyle=col;cx.lineWidth=wd;cx.setLineDash(dash||[]);cx.beginPath();
+    path.forEach((p,i)=>{const px=X(clamp(p[0],-3.4,3.4)),py=Y(clamp(p[1],-3.4,3.4));i===0?cx.moveTo(px,py):cx.lineTo(px,py);});
+    cx.stroke();cx.setLineDash([]);
+  }
+  function R(){
+    const lr=(+$("#momLr").value)*0.001, beta=(+$("#momB").value)*0.01, N=140;
+    $("#momLro").textContent=fmt(lr,3); $("#momBo").textContent=fmt(beta,2);
+    drawContours();
+    const sg=optimize("sgd",lr,0,N), mo=optimize("momentum",lr,beta,N), ne=optimize("nesterov",lr,beta,N);
+    drawPath(sg.path,"#9aa07f",1.6,[5,4]);
+    drawPath(mo.path,"#6C30D9",2.2);
+    drawPath(ne.path,"#0F7C87",2.0);
+    const fm=h=>h<0?"—":h;
+    $("#momSgd").textContent=fm(sg.hit); $("#momMom").textContent=fm(mo.hit); $("#momNes").textContent=fm(ne.hit);
+  }
+  ["momLr","momB"].forEach(id=>$("#"+id).addEventListener("input",R)); R();
+})();
+
+/* ================= ST06 init variance ================= */
+(function(){
+  let act=2; // 0 linear,1 tanh,2 relu
+  chipGroup("#inAct",["Linear","Tanh","ReLU"],2,i=>{act=i;R();});
+  function R(){
+    const scale=(+$("#inScale").value)*0.01;
+    $("#inScaleo").textContent=fmt(scale,2)+"×";
+    let std=1; const stds=[];
+    for(let k=1;k<=12;k++){
+      std*=scale;
+      if(act===1&&std>1){ std=std/(1+0.35*(std-1)); } // tanh self-limits
+      stds.push(std);
+    }
+    let html="";
+    stds.forEach((v,k)=>{
+      const logw=(Math.log10(clamp(v,1e-9,1e9))+9)/18*100;
+      const col=v<0.3?"rose":(v>3?"warn":"");
+      html+='<div class="tvbar"><span>Layer '+(k+1)+'</span><div class="tr"><div class="fl '+col+'" style="width:'+fmt(clamp(logw,1,100),0)+'%"></div></div><b>'+(v>=1000||v<0.001?v.toExponential(1):fmt(v,3))+'</b></div>';
+    });
+    $("#inBars").innerHTML=html;
+    const fin=stds[stds.length-1];
+    $("#inFinal").textContent=(fin>=1000||fin<0.001?fin.toExponential(1):fmt(fin,3));
+    let reg,msg;
+    if(fin<0.3){reg="vanishing";msg="Weights too small: activation variance collapses toward zero through depth, so deep layers see almost no signal.";}
+    else if(fin>3){reg="exploding";msg="Weights too large: variance grows through depth, pushing activations into saturation or overflow.";}
+    else {reg="preserved ✓";msg="Variance stays roughly constant across all 12 layers — the flat profile that Xavier/He initialization is designed to produce.";}
+    const el=$("#inReg");el.textContent=reg;el.parentElement.classList.remove("good","bad","warn");
+    el.parentElement.classList.add(fin<0.3?"bad":(fin>3?"warn":"good"));
+    $("#inMsg").textContent=msg;
+  }
+  $("#inScale").addEventListener("input",R); R();
+})();
+
+/* ================= ST07 optimizer race ================= */
+(function(){
+  const cv=$("#adCv"),cx=cv.getContext("2d"),W=cv.width,H=cv.height;
+  const a=1,b=12, start=[-2.6,2.2];
+  const ox=W/2, oy=H/2, sc=50;
+  const X=w=>ox+w*sc, Y=w=>oy-w*sc;
+  let sel=3;
+  const names=["SGD","AdaGrad","RMSProp","Adam"], cols=["#9aa07f","#B27412","#0F7C87","#6C30D9"];
+  chipGroup("#adCtl",names,3,i=>{sel=i;run();});
+  function grad(w){return [a*w[0],b*w[1]];}
+  function optimize(kind,lr,N){
+    let w=[start[0],start[1]], r=[0,0], s=[0,0]; const path=[[w[0],w[1]]]; let hit=-1;
+    for(let t=1;t<=N;t++){
+      const g=grad(w);
+      if(kind==="SGD"){ w=[w[0]-lr*g[0],w[1]-lr*g[1]]; }
+      else if(kind==="AdaGrad"){ r=[r[0]+g[0]*g[0],r[1]+g[1]*g[1]]; w=[w[0]-lr*g[0]/(Math.sqrt(r[0])+1e-7),w[1]-lr*g[1]/(Math.sqrt(r[1])+1e-7)]; }
+      else if(kind==="RMSProp"){ r=[0.9*r[0]+0.1*g[0]*g[0],0.9*r[1]+0.1*g[1]*g[1]]; w=[w[0]-lr*g[0]/(Math.sqrt(r[0])+1e-7),w[1]-lr*g[1]/(Math.sqrt(r[1])+1e-7)]; }
+      else { s=[0.9*s[0]+0.1*g[0],0.9*s[1]+0.1*g[1]]; r=[0.999*r[0]+0.001*g[0]*g[0],0.999*r[1]+0.001*g[1]*g[1]];
+        const bc1=1-Math.pow(0.9,t),bc2=1-Math.pow(0.999,t);
+        const sh=[s[0]/bc1,s[1]/bc1], rh=[r[0]/bc2,r[1]/bc2];
+        w=[w[0]-lr*sh[0]/(Math.sqrt(rh[0])+1e-8),w[1]-lr*sh[1]/(Math.sqrt(rh[1])+1e-8)]; }
+      if(!isFinite(w[0])||Math.abs(w[0])>8||Math.abs(w[1])>8){path.push([clamp(w[0],-8,8),clamp(w[1],-8,8)]);break;}
+      path.push([w[0],w[1]]);
+      if(hit<0&&Math.hypot(w[0],w[1])<0.08) hit=t;
+    }
+    return {path,hit};
+  }
+  function contours(){
+    cx.clearRect(0,0,W,H);cx.fillStyle="#fff";cx.fillRect(0,0,W,H);
+    cx.strokeStyle="#e3e5df";cx.beginPath();cx.moveTo(X(-3),Y(0));cx.lineTo(X(3),Y(0));cx.moveTo(X(0),Y(-3));cx.lineTo(X(0),Y(3));cx.stroke();
+    [0.4,1.2,2.6,4.6].forEach(c=>{const rx=Math.sqrt(2*c/a)*sc,ry=Math.sqrt(2*c/b)*sc;
+      cx.strokeStyle="#0F7C87";cx.globalAlpha=.28;cx.beginPath();cx.ellipse(X(0),Y(0),rx,ry,0,0,7);cx.stroke();cx.globalAlpha=1;});
+    cx.fillStyle="#C81C6E";cx.font="15px 'IBM Plex Mono',monospace";cx.fillText("★",X(0)-6,Y(0)+5);
+  }
+  function drawPath(path,col,wd,dash){cx.strokeStyle=col;cx.lineWidth=wd;cx.setLineDash(dash||[]);cx.beginPath();
+    path.forEach((p,i)=>{const px=X(clamp(p[0],-3.4,3.4)),py=Y(clamp(p[1],-3.4,3.4));i===0?cx.moveTo(px,py):cx.lineTo(px,py);});cx.stroke();cx.setLineDash([]);}
+  function run(){
+    const lr=(+$("#adLr").value)*0.001; $("#adLro").textContent=fmt(lr,3);
+    contours();
+    if(sel!==0){const ref=optimize("SGD",lr,240);drawPath(ref.path,"#c3c6bd",1.4,[5,4]);}
+    const res=optimize(names[sel],lr,240);
+    drawPath(res.path,cols[sel],2.3);
+    $("#adSteps").textContent=res.hit<0?"—":res.hit;
+    const el=$("#adName");el.textContent=names[sel];
+    $("#adMsg").textContent = sel===0
+      ? "Plain SGD must use one rate for both axes: small enough not to explode in the steep w₂ direction leaves it crawling along flat w₁."
+      : (sel===1? "AdaGrad shrinks each axis by its own accumulated gradient — fast at first, but the ever-growing denominator can stall it before the star."
+      : (sel===2? "RMSProp uses a decaying average, so the per-axis rate keeps adapting and doesn't freeze — a near-straight shot to the star."
+      : "Adam adds momentum to RMSProp's per-axis scaling: it equalizes the axes and glides almost directly to the star."));
+  }
+  $("#adLr").addEventListener("input",run);
+  $("#adRun").addEventListener("click",run);
+  $("#adLro").textContent=fmt(0.045,3);
+  run();
+})();
+
+/* ================= ST09 FGSM ================= */
+(function(){
+  const cv=$("#advCv"),cx=cv.getContext("2d"),W=cv.width,H=cv.height;
+  const wv=[1.0,0.62]; const nrm=Math.hypot(wv[0],wv[1]); const wu=[wv[0]/nrm,wv[1]/nrm];
+  let bias=-0.15; let trained=false;
+  const p=[0.55,0.75]; // clean point, class +
+  const lo=-2,hi=2, ox=W/2,oy=H/2,sc=(W-40)/(hi-lo);
+  const X=x=>ox+x*sc, Y=y=>oy-y*sc;
+  function z(pt){return wv[0]*pt[0]+wv[1]*pt[1]+bias+(trained?0.9:0);}
+  const S=t=>1/(1+Math.exp(-t));
+  function draw(){
+    const eps=(+$("#advEps").value)*0.01;
+    $("#advEpso").textContent=fmt(eps,2);
+    cx.clearRect(0,0,W,H);cx.fillStyle="#fff";cx.fillRect(0,0,W,H);
+    // shade half planes: iterate coarse grid
+    for(let gx=0;gx<W;gx+=8)for(let gy=0;gy<H;gy+=8){
+      const xx=(gx-ox)/sc, yy=(oy-gy)/sc; const zz=wv[0]*xx+wv[1]*yy+bias+(trained?0.9:0);
+      cx.fillStyle= zz>=0? "rgba(15,124,135,.06)":"rgba(200,28,110,.06)";
+      cx.fillRect(gx,gy,8,8);
+    }
+    // boundary w·x+bias+off=0
+    const off=bias+(trained?0.9:0);
+    // line: wv0 x + wv1 y + off =0 → y=-(wv0 x+off)/wv1
+    const xa=lo,xb=hi, ya=-(wv[0]*xa+off)/wv[1], yb=-(wv[0]*xb+off)/wv[1];
+    cx.strokeStyle="#14171B";cx.lineWidth=2;cx.beginPath();cx.moveTo(X(xa),Y(ya));cx.lineTo(X(xb),Y(yb));cx.stroke();
+    cx.fillStyle="#4B515A";cx.font="10px 'IBM Plex Mono',monospace";
+    cx.fillText("class +",X(1.1),Y(1.5)); cx.fillText("class −",X(-1.7),Y(-1.3));
+    // adversarial point: p' = p - eps*sign(wv) (FGSM for + class)
+    const padv=[p[0]-eps*Math.sign(wv[0]),p[1]-eps*Math.sign(wv[1])];
+    // arrow
+    cx.strokeStyle="#B27412";cx.lineWidth=1.6;cx.setLineDash([4,3]);cx.beginPath();cx.moveTo(X(p[0]),Y(p[1]));cx.lineTo(X(padv[0]),Y(padv[1]));cx.stroke();cx.setLineDash([]);
+    // clean point
+    cx.fillStyle="#0F7C87";cx.beginPath();cx.arc(X(p[0]),Y(p[1]),7,0,7);cx.fill();
+    // adv point (hollow)
+    cx.fillStyle="#fff";cx.strokeStyle="#C81C6E";cx.lineWidth=2.4;cx.beginPath();cx.arc(X(padv[0]),Y(padv[1]),7,0,7);cx.fill();cx.stroke();
+    // readouts
+    const zc=z(p), za=wv[0]*padv[0]+wv[1]*padv[1]+off;
+    $("#advClean").textContent=zc>=0?"+ (correct)":"−";
+    const advWrong=za<0;
+    const ael=$("#advAdv"); ael.textContent=advWrong?"− (fooled!)":"+ (held)";
+    ael.parentElement.classList.toggle("bad",advWrong); ael.parentElement.classList.toggle("good",!advWrong);
+    $("#advConf").textContent=fmt(S(Math.abs(za))*100,0)+"%";
+    $("#advMsg").textContent= advWrong
+      ? "A perturbation of only ε="+fmt(eps,2)+" per feature pushed the hollow point across the boundary — the label flipped while the move is barely visible."
+      : (trained? "After adversarial training the boundary sits farther from the point, so the same ε no longer flips it — a wider safety margin."
+                : "The hollow adversarial point is still on the correct side. Raise ε until it crosses the boundary.");
+  }
+  $("#advEps").addEventListener("input",draw);
+  $("#advTrain").addEventListener("click",function(){trained=!trained;this.textContent="Adversarial training: "+(trained?"ON":"OFF");this.classList.toggle("on",trained);draw();});
+  draw();
+})();
+
+/* ================= quiz ================= */
+const qs=[
+ {q:"The core reason learning differs from pure optimization is that we actually minimize…",o:["The true risk over the data distribution","The empirical risk over a finite training sample","The number of parameters","The learning rate"],a:1,e:"We can't compute the true risk, so we minimize empirical risk on a finite sample and hope the two agree — the source of overfitting."},
+ {q:"Why do we optimize a surrogate loss (e.g. cross-entropy) instead of 0–1 classification error?",o:["It is more accurate","0–1 loss has zero/undefined gradient, so descent can't follow it","Surrogates are faster to compute","To use less memory"],a:1,e:"The 0–1 loss is flat between mistakes and jumps at the boundary, giving no usable gradient; a smooth surrogate upper-bounds it and keeps a gradient to follow."},
+ {q:"In high-dimensional neural-network landscapes, the dominant obstacle to first-order methods is…",o:["Local minima far above the global one","Saddle points and plateaus where the gradient nearly vanishes","A lack of parameters","Convexity"],a:1,e:"Critical points are overwhelmingly saddle points; most local minima are nearly as good as the global one, so flatness — not bad minima — stalls training."},
+ {q:"Gradients vanish or explode with depth because the backprop signal is…",o:["Added across layers","Multiplied across layers by weights and activation slopes","Divided by the batch size","Averaged over epochs"],a:1,e:"The chain rule multiplies a per-layer factor ≈ (w·σ′) L times; below 1 it vanishes, above 1 it explodes."},
+ {q:"A decaying learning-rate schedule is needed in SGD mainly because…",o:["The gradient becomes exact over time","Minibatch noise keeps the iterate rattling unless steps shrink","Bigger steps are always better","It saves memory"],a:1,e:"The minibatch gradient is non-zero even at the optimum, so a fixed rate leaves a noise cloud; shrinking ε tightens it to a point."},
+ {q:"Momentum accelerates optimization by…",o:["Increasing the batch size","Accumulating a velocity so consistent directions build up and oscillations cancel","Making the loss convex","Randomizing the weights"],a:1,e:"v ← βv − ε∇J averages past gradients: aligned steps reinforce (speeding the valley floor) while back-and-forth steps cancel."},
+ {q:"Nesterov momentum differs from standard momentum by…",o:["Using a larger learning rate","Evaluating the gradient at the look-ahead point θ+βv","Removing the velocity term","Adding weight decay"],a:1,e:"It peeks ahead along the current velocity before measuring the gradient, letting it brake before overshooting."},
+ {q:"Why must weights NOT all be initialized to the same value?",o:["It wastes memory","Identical units get identical gradients and never differentiate — symmetry isn't broken","It makes the loss convex","Biases would explode"],a:1,e:"Two units with identical weights and the same input receive identical updates forever, so they stay clones. Random init breaks that symmetry."},
+ {q:"He initialization (vs Xavier) is designed for which activation, and scales variance how?",o:["Sigmoid; Var = 1/n_out","ReLU; Var = 2/n_in to offset ReLU zeroing half its inputs","Tanh; Var = n_in","Linear; Var = 1"],a:1,e:"He init targets ReLU with Var(W)=2/n_in — the factor of 2 compensates for ReLU discarding the negative half."},
+ {q:"AdaGrad's main weakness, which RMSProp fixes, is that…",o:["It ignores the gradient","Its accumulated squared-gradient denominator only grows, so the rate decays to a halt","It has no learning rate","It requires convexity"],a:1,e:"AdaGrad sums all past squared gradients; the ever-growing denominator can stop learning too early. RMSProp uses a decaying average instead."},
+ {q:"Adam can be summarized as…",o:["SGD with a fixed rate","RMSProp plus momentum, with bias-corrected moving averages","AdaGrad without a denominator","Pure Nesterov momentum"],a:1,e:"Adam keeps a momentum term (first moment) and an RMSProp-style second moment, both bias-corrected — the forgiving modern default."},
+ {q:"Greedy layer-wise pretraining helps by…",o:["Training all layers at once from random weights","Training layers one at a time to give the deep net a good initialization, then fine-tuning","Removing the deepest layers","Increasing the learning rate"],a:1,e:"Each layer is trained (often unsupervised) to represent the layer below, giving a better start; a final fine-tuning pass adjusts everything — the ancestor of transfer learning."},
+ {q:"An adversarial example fools a network because…",o:["The perturbation is large and visible","Many tiny, gradient-aligned input nudges sum to a large change in a near-linear model","The labels are wrong","The network is too small"],a:1,e:"FGSM nudges every input by ε·sign(∇ₓL); in high dimensions these aligned nudges add up, crossing the boundary despite being imperceptible."}
+];
+let score=0,answered=new Set();
+function quizRender(){
+  $("#quiz").innerHTML=qs.map((q,i)=>
+    '<div class="q" data-i="'+i+'"><p class="stem">'+(i+1)+'. '+q.q+'</p>'+
+    q.o.map((o,j)=>'<button class="opt" data-j="'+j+'">'+o+'</button>').join("")+
+    '<div class="exp">'+q.e+'</div></div>').join("");
+  $("#score").textContent=score+" / "+qs.length;
+  $$("#quiz .q").forEach(qel=>{
+    const i=+qel.dataset.i;
+    $$(".opt",qel).forEach(b=>b.addEventListener("click",()=>{
+      if(answered.has(i))return; answered.add(i);
+      const j=+b.dataset.j;
+      if(j===qs[i].a){b.classList.add("right");score++;}
+      else{b.classList.add("wrong");$$(".opt",qel)[qs[i].a].classList.add("right");}
+      $(".exp",qel).classList.add("show");
+      $("#score").textContent=score+" / "+qs.length;
+    }));
+  });
+}
+$("#qReset").addEventListener("click",()=>{score=0;answered=new Set();quizRender();annotate($("main"));});
+quizRender();
+
+/* ================= glossary + abbr ================= */
+const ABBR={
+ "SGD":"Stochastic Gradient Descent — gradient descent on random minibatches",
+ "GD":"Gradient Descent — step the parameters opposite the full gradient",
+ "MSE":"Mean Squared Error — the squared-error loss",
+ "NLL":"Negative Log-Likelihood — the cross-entropy / log loss used for classification",
+ "ReLU":"Rectified Linear Unit — max(0, x); derivative 1 on the active side",
+ "Hessian":"Matrix of second derivatives of the loss; its eigenvalues are the curvatures",
+ "FGSM":"Fast Gradient Sign Method — a one-step adversarial attack, x + ε·sign(∇ₓL)",
+ "PGD":"Projected Gradient Descent — an iterated, stronger adversarial attack",
+ "RBM":"Restricted Boltzmann Machine — an energy model once used to pretrain layers",
+ "Adam":"Adaptive Moment estimation — RMSProp with momentum and bias correction",
+ "AdaGrad":"Adaptive Gradient — per-parameter rates from summed squared gradients",
+ "RMSProp":"Root Mean Square Propagation — AdaGrad with a decaying gradient-square average",
+ "AdamW":"Adam with decoupled weight decay",
+ "LSTM":"Long Short-Term Memory — a gated RNN that resists vanishing gradients over time",
+ "GRU":"Gated Recurrent Unit — a lighter gated RNN cell",
+ "RNN":"Recurrent Neural Network — processes sequences step by step",
+ "GAN":"Generative Adversarial Network — a generator/discriminator pair trained together",
+ "RL":"Reinforcement Learning — learning from reward signals",
+ "IID":"Independent and Identically Distributed — the usual assumption on samples",
+ "Xavier":"Xavier/Glorot initialization — Var(W)=2/(n_in+n_out), for tanh-style nets",
+ "He":"He/Kaiming initialization — Var(W)=2/n_in, for ReLU nets",
+ "saddle":"Saddle point — a critical point that is a minimum in some directions, a maximum in others",
+ "epoch":"Epoch — one full pass over the training set",
+ "minibatch":"Minibatch — a small random subset of examples used to estimate the gradient"
+};
+const aKeys=Object.keys(ABBR).sort((a,b)=>b.length-a.length);
+const aEsc=s=>s.replace(/[.*+?^${}()|[\]\\\-]/g,"\\$&");
+const aPat="(?:^|(?<=[^A-Za-z0-9]))("+aKeys.map(aEsc).join("|")+")(?![A-Za-z0-9])";
+let rxG,rxT;
+try{ rxG=new RegExp(aPat,"g"); rxT=new RegExp(aPat); }
+catch(e){ rxG=new RegExp("\\b("+aKeys.map(aEsc).join("|")+")\\b","g"); rxT=new RegExp("\\b("+aKeys.map(aEsc).join("|")+")\\b"); }
+function annotate(root){
+  if(!root) return;
+  const bad={SCRIPT:1,STYLE:1,ABBR:1,BUTTON:1,INPUT:1,TEXTAREA:1,H1:1,H2:1,TITLE:1,PRE:1,CANVAS:1};
+  const nodes=[], w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null);
+  while(w.nextNode()){
+    const n=w.currentNode;
+    if(!n.nodeValue||!rxT.test(n.nodeValue)) continue;
+    let p=n.parentNode, ok=true;
+    while(p&&p!==root.parentNode){
+      if(p.nodeType===1){
+        if(p.namespaceURI==="http://www.w3.org/2000/svg"||bad[p.tagName]){ok=false;break;}
+        if(p.classList&&p.classList.contains("no-abbr")){ok=false;break;}
+      }
+      p=p.parentNode;
+    }
+    if(ok) nodes.push(n);
+  }
+  nodes.forEach(n=>{
+    const s=n.nodeValue, frag=document.createDocumentFragment();
+    let last=0,m; rxG.lastIndex=0;
+    while((m=rxG.exec(s))!==null){
+      const term=m[1], at=m.index+m[0].length-term.length;
+      if(at>last) frag.appendChild(document.createTextNode(s.slice(last,at)));
+      const a=document.createElement("abbr");
+      a.title=ABBR[term]; a.textContent=term; frag.appendChild(a);
+      last=at+term.length;
+      if(rxG.lastIndex===m.index) rxG.lastIndex++;
+    }
+    if(last<s.length) frag.appendChild(document.createTextNode(s.slice(last)));
+    if(frag.childNodes.length) n.parentNode.replaceChild(frag,n);
+  });
+}
+const pop=document.createElement("div"); pop.className="abbr-pop"; document.body.appendChild(pop);
+let popT;
+document.addEventListener("click",e=>{
+  const t=e.target, a=(t&&t.closest)?t.closest("abbr[title]"):null;
+  if(a){ pop.textContent=a.textContent+" · "+a.title; pop.classList.add("on");
+    clearTimeout(popT); popT=setTimeout(()=>pop.classList.remove("on"),4500); }
+  setTimeout(()=>annotate($("main")),40);
+});
+(function glossary(){
+  const gl=$("#gloss");
+  gl.innerHTML=Object.keys(ABBR).sort((a,b)=>a.toLowerCase().localeCompare(b.toLowerCase()))
+    .map(k=>"<div data-k=\""+(k+" "+ABBR[k]).toLowerCase().replace(/"/g,"")+"\"><b>"+k+"</b> — "+ABBR[k]+"</div>").join("");
+  $("#glossQ").addEventListener("input",e=>{
+    const q=e.target.value.trim().toLowerCase();
+    $$("#gloss div").forEach(d=>{ d.style.display=(!q||d.dataset.k.indexOf(q)>-1)?"":"none"; });
+  });
+})();
+annotate($("main"));
+})();
+</script>
+</body>
+</html>

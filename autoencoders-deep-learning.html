@@ -1,0 +1,1180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 14 · Autoencoders — Undercomplete, Regularized, Stochastic Encoders/Decoders & Applications</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700;800&family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root{
+  --paper:#E6E9E3;       /* drafting / graph paper */
+  --panel:#F7F8F3;       /* vellum panel */
+  --ink:#14171B;
+  --ink2:#4B515A;
+  --pri:#6C30D9;         /* violet — regularization / L2 / the penalty */
+  --acc:#C81C6E;         /* rose  — L1 / sparsity */
+  --sec:#0F7C87;         /* teal  — data term / loss / w* */
+  --warn:#B27412;        /* amber — caution / notes */
+  --rule:rgba(20,23,27,.16);
+  --rule-2:rgba(20,23,27,.34);
+  --disp:'Saira Condensed','Arial Narrow',sans-serif;
+  --body:'Spectral',Georgia,serif;
+  --mono:'IBM Plex Mono',ui-monospace,Consolas,monospace;
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:96px}
+body{
+  margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);
+  font-size:16px;line-height:1.62;
+  background-image:
+    linear-gradient(rgba(20,23,27,.045) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(20,23,27,.045) 1px,transparent 1px);
+  background-size:34px 34px;
+}
+h1,h2,h3,h4{font-family:var(--disp);text-transform:uppercase;letter-spacing:.045em;line-height:1.05;margin:0}
+p{margin:0 0 .85em}
+a{color:var(--sec)}
+:focus-visible{outline:2.5px solid var(--pri);outline-offset:3px}
+
+/* ---------- top bar ---------- */
+.hud{position:sticky;top:0;z-index:40;background:rgba(230,233,227,.93);backdrop-filter:blur(7px);
+  border-bottom:1.5px solid var(--rule-2)}
+.hud-in{max-width:1280px;margin:0 auto;padding:9px 20px;display:flex;align-items:center;gap:18px}
+.hud-id{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink2)}
+.hud-id b{color:var(--pri);font-weight:600}
+.hud-title{font-family:var(--disp);font-weight:800;font-size:17px;letter-spacing:.06em;margin-right:auto}
+.hud-prog{display:flex;align-items:center;gap:9px;font-family:var(--mono);font-size:11px;color:var(--ink2)}
+.prog-track{width:130px;height:5px;background:rgba(20,23,27,.14);border-radius:0}
+.prog-fill{height:100%;width:0;background:var(--pri);transition:width .25s}
+
+/* ---------- shell ---------- */
+.shell{max-width:1080px;margin:0 auto;padding:0 20px 90px;display:block}
+.rail{position:fixed;top:0;left:0;bottom:0;width:280px;max-width:82vw;background:var(--panel);border-right:1.5px solid var(--rule-2);
+  padding:20px 22px 30px;z-index:70;overflow-y:auto;transform:translateX(-104%);transition:transform .28s ease;box-shadow:6px 0 22px rgba(20,23,27,.14)}
+.rail.open{transform:none}
+.rail-bg{position:fixed;inset:0;background:rgba(20,23,27,.38);z-index:65;opacity:0;pointer-events:none;transition:opacity .25s}
+.rail-bg.on{opacity:1;pointer-events:auto}
+.rail-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--rule-2)}
+.rail-h{font-family:var(--mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink2)}
+.rail-x{border:1px solid var(--rule-2);background:var(--paper);color:var(--ink);font-family:var(--mono);font-size:13px;line-height:1;
+  width:28px;height:28px;cursor:pointer}
+.rail-x:hover{background:var(--pri);color:var(--panel);border-color:var(--pri)}
+.ham{flex:none;display:flex;flex-direction:column;justify-content:center;gap:5px;width:40px;height:34px;padding:0 9px;
+  border:1px solid var(--rule-2);background:var(--panel);cursor:pointer}
+.ham span{display:block;height:2px;background:var(--ink);transition:transform .25s,opacity .2s}
+.ham:hover span{background:var(--pri)}
+.ham.open span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+.ham.open span:nth-child(2){opacity:0}
+.ham.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+.rail a{display:flex;gap:10px;align-items:baseline;padding:6px 0;text-decoration:none;color:var(--ink2);font-family:var(--disp);
+  font-size:14.5px;letter-spacing:.05em;text-transform:uppercase;border-bottom:1px dotted transparent}
+.rail a span{font-family:var(--mono);font-size:10px;color:var(--pri);min-width:20px}
+.rail a:hover{color:var(--ink)}
+.rail a.on{color:var(--ink);font-weight:700}
+.rail a.on span{background:var(--pri);color:var(--panel);padding:1px 3px}
+
+/* ---------- hero ---------- */
+.hero{padding:34px 0 8px}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--pri)}
+.hero h1{font-size:clamp(38px,6.4vw,74px);font-weight:800;margin:10px 0 6px;letter-spacing:.02em}
+.hero h1 em{font-style:normal;color:var(--pri)}
+.hero-sub{max-width:60ch;color:var(--ink2);font-size:17px}
+.chartbox{margin-top:22px;border:1.5px solid var(--rule-2);background:var(--panel);position:relative;overflow:hidden}
+.chartbox svg{display:block;width:100%;height:auto}
+.chart-cap{display:flex;flex-wrap:wrap;gap:6px 20px;padding:9px 14px;border-top:1px solid var(--rule);font-family:var(--mono);
+  font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2)}
+.wp{cursor:pointer}
+.wp circle{transition:r .18s,fill .18s}
+.wp:hover circle.hit{r:15}
+.wp:hover text{fill:var(--pri)}
+
+/* ---------- sections ---------- */
+.leg{padding:52px 0 8px;border-top:1.5px solid var(--rule-2);margin-top:44px}
+.leg-head{display:flex;gap:14px;align-items:flex-start;margin-bottom:20px}
+.leg-no{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--panel);background:var(--ink);padding:3px 6px;margin-top:5px;white-space:nowrap}
+.leg h2{font-size:clamp(25px,3.6vw,38px);font-weight:800}
+.leg-kicker{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--pri);margin-bottom:4px}
+.lede{font-size:17.5px;max-width:68ch}
+
+.panel{background:var(--panel);border:1.5px solid var(--rule-2);padding:20px 22px;margin:20px 0}
+.panel-t{font-family:var(--disp);font-weight:700;font-size:16px;letter-spacing:.09em;text-transform:uppercase;
+  display:flex;align-items:center;gap:9px;margin-bottom:14px;padding-bottom:9px;border-bottom:1px solid var(--rule)}
+.panel-t::before{content:"";width:9px;height:9px;background:var(--pri);flex:none;transform:rotate(45deg)}
+.panel-t small{margin-left:auto;font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--ink2);text-transform:uppercase;font-weight:400}
+
+.two{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.three{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+
+/* key list */
+ul.kl{list-style:none;padding:0;margin:0}
+ul.kl li{padding:7px 0 7px 20px;border-bottom:1px dotted var(--rule-2);position:relative}
+ul.kl li:last-child{border-bottom:0}
+ul.kl li::before{content:"▸";position:absolute;left:0;color:var(--pri);font-size:12px;top:8px}
+ul.kl b{font-family:var(--disp);font-size:16px;letter-spacing:.04em;text-transform:uppercase}
+.mono{font-family:var(--mono);font-size:12.5px}
+.def{border-left:3px solid var(--pri);padding:2px 0 2px 14px;margin:14px 0;font-size:17px}
+.note{background:rgba(178,116,18,.1);border:1px solid rgba(178,116,18,.45);padding:11px 14px;font-size:14.5px;margin:14px 0}
+.note b{font-family:var(--disp);letter-spacing:.06em;text-transform:uppercase;color:var(--warn)}
+
+/* plain-words (grade-6) explainer */
+.eli{background:rgba(15,124,135,.06);border:1.5px solid rgba(15,124,135,.38);border-left:5px solid var(--sec);
+  padding:14px 18px 13px;margin:18px 0}
+.eli-h{display:flex;align-items:center;gap:9px;font-family:var(--disp);font-weight:700;font-size:14px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--sec);margin-bottom:9px}
+.eli-h::before{content:"";width:11px;height:11px;border-radius:50%;background:var(--sec);box-shadow:0 0 0 3px rgba(15,124,135,.22);flex:none}
+.eli-h small{margin-left:auto;font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;color:var(--ink2);font-weight:400}
+.eli p{font-size:16px;line-height:1.66;margin:0 0 .6em}
+.eli p:last-child{margin-bottom:0}
+.eli b{color:var(--ink);font-weight:600}
+.eli .pic{font-style:italic;color:var(--sec)}
+
+/* display equation */
+.eqn{font-family:var(--mono);font-size:15px;line-height:1.9;background:rgba(108,48,217,.055);border-left:4px solid var(--pri);
+  padding:12px 16px;margin:14px 0;overflow-x:auto;letter-spacing:.01em}
+.eqn .lbl{color:var(--ink2);font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+.eqn b{color:var(--pri)} .eqn .t{color:var(--sec)}
+sub,sup{font-size:.72em;line-height:0}
+
+/* table */
+table.t{width:100%;border-collapse:collapse;font-size:14px}
+table.t th{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;text-align:left;
+  padding:8px 9px;border-bottom:1.5px solid var(--ink);color:var(--ink2)}
+table.t td{padding:8px 9px;border-bottom:1px solid var(--rule);vertical-align:top}
+table.t tr:hover td{background:rgba(108,48,217,.06)}
+table.t td.hl{color:var(--pri);font-weight:600}
+
+/* controls */
+.ctl{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+button.chip{font-family:var(--disp);font-size:14px;letter-spacing:.06em;text-transform:uppercase;padding:6px 13px;
+  background:transparent;border:1.5px solid var(--rule-2);color:var(--ink2);cursor:pointer}
+button.chip:hover{border-color:var(--ink);color:var(--ink)}
+button.chip.on{background:var(--ink);border-color:var(--ink);color:var(--panel)}
+button.chip.mag.on{background:var(--pri);border-color:var(--pri)}
+button.chip.rose.on{background:var(--acc);border-color:var(--acc)}
+.slider{display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:center;margin:12px 0}
+.slider label{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink2);grid-column:1/-1}
+.slider input[type=range]{width:100%;accent-color:var(--pri)}
+.slider output{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--pri);min-width:92px;text-align:right}
+input[type=number]{font-family:var(--mono);font-size:13px;padding:5px 7px;border:1.5px solid var(--rule-2);background:#fff;width:100%}
+.field{margin-bottom:9px}
+.field label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink2);margin-bottom:3px}
+
+/* readouts */
+.reads{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:1.5px;background:var(--rule-2);border:1.5px solid var(--rule-2)}
+.read{background:var(--panel);padding:10px 12px}
+.read i{font-style:normal;display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2)}
+.read b{display:block;font-family:var(--disp);font-size:26px;font-weight:700;letter-spacing:.02em;line-height:1.15}
+.read b s{text-decoration:none;font-size:13px;color:var(--ink2);font-weight:500}
+.read.warn b{color:var(--warn)} .read.bad b{color:var(--acc)} .read.good b{color:var(--sec)} .read.pri b{color:var(--pri)}
+
+/* detail block */
+.detail{margin-top:14px;border-top:1px solid var(--rule);padding-top:12px;min-height:104px}
+.detail h4{font-size:19px;margin-bottom:3px}
+.detail .spec{font-family:var(--mono);font-size:11.5px;color:var(--pri);letter-spacing:.06em;margin-bottom:7px}
+
+/* cards */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:12px}
+.card{border:1.5px solid var(--rule-2);background:var(--panel);padding:14px;cursor:pointer;transition:transform .16s}
+.card:hover{transform:translateY(-3px);border-color:var(--pri)}
+.card h4{font-size:16px;margin-bottom:5px}
+.card .tag{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--pri)}
+.card p{font-size:14px;margin:6px 0 0;color:var(--ink2)}
+.card .fix{display:none;margin-top:9px;padding-top:8px;border-top:1px dotted var(--rule-2);font-size:13.5px}
+.card.open .fix{display:block}
+.card.open{border-color:var(--pri)}
+
+/* quiz */
+.q{border-bottom:1px solid var(--rule);padding:14px 0}
+.q p.stem{font-weight:600;margin-bottom:8px}
+.opt{display:block;width:100%;text-align:left;font-family:var(--body);font-size:14.5px;padding:6px 11px;margin-bottom:5px;
+  background:#fff;border:1.5px solid var(--rule);cursor:pointer;color:var(--ink)}
+.opt:hover{border-color:var(--ink2)}
+.opt.right{border-color:var(--sec);background:rgba(15,124,135,.11);font-weight:600}
+.opt.wrong{border-color:var(--acc);background:rgba(200,28,110,.09);text-decoration:line-through}
+.exp{display:none;font-size:13.5px;color:var(--ink2);border-left:3px solid var(--sec);padding-left:11px;margin-top:7px}
+.exp.show{display:block}
+
+/* misc */
+.stat-row{display:flex;flex-wrap:wrap;gap:10px;font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2)}
+.foot{margin-top:52px;border-top:1.5px solid var(--rule-2);padding-top:16px;font-family:var(--mono);font-size:11px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink2);display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between}
+.badge{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  border:1px solid var(--rule-2);padding:1px 6px;color:var(--ink2)}
+
+/* figures */
+.fig{margin:20px 0;border:1.5px solid var(--rule-2);background:var(--panel);padding:16px 18px 12px}
+.fig svg{display:block;width:100%;height:auto}
+.fig figcaption{margin-top:11px;padding-top:9px;border-top:1px solid var(--rule);font-family:var(--mono);
+  font-size:11px;letter-spacing:.05em;color:var(--ink2);line-height:1.55}
+.fig figcaption b{color:var(--pri);letter-spacing:.14em;margin-right:6px}
+
+/* abbreviations */
+abbr[title]{border-bottom:1px dotted var(--pri);text-decoration:none;cursor:help}
+abbr[title]:hover{background:rgba(108,48,217,.1)}
+.abbr-pop{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--ink);color:var(--panel);
+  font-family:var(--mono);font-size:12.5px;line-height:1.5;padding:9px 15px;z-index:60;max-width:min(92vw,540px);
+  opacity:0;pointer-events:none;transition:opacity .18s;border-left:4px solid var(--pri)}
+.abbr-pop.on{opacity:1}
+
+/* key takeaways */
+.tk{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1.5px;background:var(--rule-2);border:1.5px solid var(--rule-2)}
+.tk-item{background:var(--panel);padding:17px 18px;display:flex;gap:14px;align-items:flex-start}
+.tk-item i{font-style:normal;font-family:var(--disp);font-size:30px;font-weight:800;color:var(--pri);line-height:.9;min-width:36px}
+.tk-item h4{font-size:16.5px;margin-bottom:5px}
+.tk-item p{font-size:14.5px;margin:0;color:var(--ink2);line-height:1.55}
+.headline{border:1.5px solid var(--ink);background:var(--ink);color:var(--paper);padding:20px 22px;margin:20px 0}
+.headline h3{font-size:clamp(19px,2.6vw,26px);color:var(--paper);margin-bottom:8px}
+.headline p{margin:0;font-size:16px;opacity:.92}
+.headline b{color:#C79BF0}
+
+/* glossary */
+.gloss{column-count:2;column-gap:28px}
+.gloss div{break-inside:avoid;padding:5px 0;border-bottom:1px dotted var(--rule);font-size:14px;line-height:1.45}
+.gloss b{font-family:var(--mono);font-size:12px;color:var(--pri);letter-spacing:.03em}
+input.search{font-family:var(--mono);font-size:13px;padding:7px 10px;border:1.5px solid var(--rule-2);background:#fff;width:100%;margin-bottom:14px}
+
+/* code */
+pre.code{background:#14171B;color:#E9EDDD;font-family:var(--mono);font-size:12.5px;line-height:1.65;
+  padding:13px 16px;overflow-x:auto;margin:12px 0;border-left:4px solid var(--pri)}
+pre.code .c{color:#8a967f}
+pre.code .k{color:#C79BF0}
+pre.code .s{color:#7fc8d2}
+
+/* labs */
+.lab{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0}
+.cv{border:1.5px solid var(--rule-2);background:#fff}
+.cv canvas{display:block;width:100%;height:auto}
+.cv-cap{font-family:var(--mono);font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink2);
+  padding:6px 9px;border-top:1px solid var(--rule);background:var(--panel)}
+.bar-row{display:grid;grid-template-columns:130px 1fr 92px;gap:10px;align-items:center;font-family:var(--mono);
+  font-size:11px;letter-spacing:.04em;margin:6px 0}
+.bar-row .tr{background:rgba(20,23,27,.1);height:13px;position:relative}
+.bar-row .fl{position:absolute;left:0;top:0;bottom:0;background:var(--pri);transition:width .18s}
+.bar-row .fl.rose{background:var(--acc)} .bar-row .fl.sec{background:var(--sec)} .bar-row .fl.dim{background:var(--rule-2)}
+.bar-row b{text-align:right;font-weight:600}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink2);margin:8px 0}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:16px;height:3px;display:inline-block}
+.contour-wrap{border:1.5px solid var(--rule-2);background:#fff}
+.contour-wrap svg{display:block;width:100%;height:auto}
+
+@media(max-width:960px){
+  .hud-title{font-size:14px}
+  .two,.three,.lab{grid-template-columns:1fr}
+  .gloss{column-count:1}
+}
+@media(prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+  html{scroll-behavior:auto}
+}
+
+/* in-practice use-case block */
+.uc{background:rgba(108,48,217,.05);border:1.5px solid rgba(108,48,217,.32);border-left:5px solid var(--pri);padding:14px 18px 13px;margin:18px 0}
+.uc-h{display:flex;align-items:center;gap:9px;font-family:var(--disp);font-weight:700;font-size:14px;letter-spacing:.1em;text-transform:uppercase;color:var(--pri);margin-bottom:9px}
+.uc-h::before{content:"";width:11px;height:11px;background:var(--pri);transform:rotate(45deg);flex:none}
+.uc-h .tag{margin-left:auto;font-family:var(--mono);font-size:9px;letter-spacing:.12em;color:var(--pri);font-weight:400;border:1px solid rgba(108,48,217,.4);padding:2px 7px;text-transform:uppercase}
+.uc p{font-size:15px;line-height:1.6;margin:0 0 .55em}
+.uc p:last-child{margin-bottom:0}
+.uc b{color:var(--ink);font-weight:600}
+.uc .case{font-family:var(--mono);font-size:11.5px;line-height:1.5;color:var(--ink2);margin-top:9px;padding-top:9px;border-top:1px dashed var(--rule-2)}
+.uc .case b{color:var(--pri)}
+
+/* ===== shared additions for these volumes ===== */
+.netwrap{border:1.5px solid var(--rule-2);background:#fff}
+.netwrap svg{display:block;width:100%;height:auto}
+.pipe{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-family:var(--disp);font-size:13.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink2);margin:10px 0}
+.pipe b{background:#fff;border:1.5px solid var(--rule-2);padding:6px 11px;color:var(--ink)}
+.pipe span{font-family:var(--mono);color:var(--rule-2)}
+.tvbar{display:grid;grid-template-columns:118px 1fr 62px;gap:10px;align-items:center;font-family:var(--mono);font-size:11px;margin:5px 0}
+.tvbar .tr{background:rgba(20,23,27,.08);height:14px;position:relative}
+.tvbar .fl{position:absolute;left:0;top:0;bottom:0;background:var(--sec);transition:width .18s}
+.tvbar .fl.pri{background:var(--pri)} .tvbar .fl.rose{background:var(--acc)} .tvbar .fl.warn{background:var(--warn)}
+.tvbar b{text-align:right}
+.grid-lab{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+@media(max-width:960px){ .grid-lab{grid-template-columns:1fr} }
+.pill{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;border:1px solid var(--rule-2);padding:2px 7px;color:var(--ink2);margin:2px 4px 2px 0}
+.pill.pri{color:var(--pri);border-color:rgba(108,48,217,.5)}
+.pill.sec{color:var(--sec);border-color:rgba(15,124,135,.5)}
+.pill.rose{color:var(--acc);border-color:rgba(200,28,110,.5)}
+.pill.warn{color:var(--warn);border-color:rgba(178,116,18,.5)}
+</style>
+</head>
+<body>
+
+<div class="hud">
+  <div class="hud-in">
+    <button class="ham" id="ham" aria-label="Open toolkit menu" aria-expanded="false" aria-controls="rail"><span></span><span></span><span></span></button>
+    <div class="hud-id">CH <b>14</b></div>
+    <div class="hud-title">Autoencoders</div>
+    <div class="hud-prog"><span id="progTxt">0%</span><div class="prog-track"><div class="prog-fill" id="progFill"></div></div></div>
+  </div>
+</div>
+
+<div class="shell">
+
+  <nav class="rail no-abbr" id="rail" aria-label="Toolkit menu">
+    <div class="rail-top"><div class="rail-h">Through the bottleneck / 6 stations + summary</div><button class="rail-x" id="railX" aria-label="Close menu">&#10005;</button></div>
+    <a href="#l1"><span>01</span>What an autoencoder is</a>
+    <a href="#l2"><span>02</span>Undercomplete</a>
+    <a href="#l3"><span>03</span>Regularized</a>
+    <a href="#l4"><span>04</span>Power, size &amp; depth</a>
+    <a href="#l5"><span>05</span>Stochastic encoders</a>
+    <a href="#l6"><span>06</span>Applications</a>
+    <a href="#l7"><span>Σ</span>Revision + takeaways</a>
+  </nav>
+  <div class="rail-bg" id="railBg"></div>
+
+  <main>
+
+  <!-- ================= HERO ================= -->
+  <header class="hero">
+    <div class="eyebrow">Deep learning · Chapter 14 · Learning to copy — usefully</div>
+    <h1>Squeeze it,<br>then <em>rebuild it</em>.</h1>
+    <p class="hero-sub">An autoencoder is a network trained to copy its input to its output — a task that sounds pointless until you force the copy to pass through a narrow channel. To reconstruct well through that bottleneck, the network must throw away noise and keep only the essence, learning a compact code for the data. This volume walks the bottleneck: undercomplete and regularized autoencoders, how representational power scales with size and depth, stochastic encoders and decoders, and the encoder–decoder models behind compression, denoising, retrieval and translation. Every diagram, projection and reconstruction below is computed live in your browser.</p>
+
+    <div class="chartbox">
+      <svg viewBox="0 0 960 372" role="img" aria-label="An autoencoder: a wide input layer narrowing to a small code, then widening back to a reconstruction, with a data point flowing through">
+        <rect width="960" height="372" fill="#F7F8F3"/>
+        <text x="40" y="40" font-family="IBM Plex Mono,monospace" font-size="10" letter-spacing="1.4" fill="#14171B">ENCODER  f  →  CODE  h  →  DECODER  g</text>
+
+        <!-- layer node columns: input(7) enc(5) code(2) dec(5) output(7) -->
+        <g id="aeNet"></g>
+
+        <!-- bracket labels -->
+        <text x="120" y="352" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="10" fill="#0F7C87">input x</text>
+        <text x="330" y="352" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="10" fill="#6C30D9">encoder f</text>
+        <text x="480" y="352" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="10" fill="#C81C6E">code h</text>
+        <text x="630" y="352" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="10" fill="#6C30D9">decoder g</text>
+        <text x="840" y="352" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="10" fill="#0F7C87">reconstruction x&#770;</text>
+
+        <text x="480" y="46" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9" fill="#C81C6E">the bottleneck forces compression</text>
+      </svg>
+      <div class="chart-cap">
+        <span>◆ 6 stations · 6 live labs</span>
+        <span>◆ Goodfellow · Deep Learning · Chapter 14</span>
+        <span>◆ every reconstruction computed in-browser</span>
+      </div>
+    </div>
+  </header>
+  <!-- ================= 01 WHAT AN AUTOENCODER IS ================= -->
+  <section class="leg" id="l1">
+    <div class="leg-head"><div class="leg-no">01</div><div>
+      <div class="leg-kicker">Learning to copy · §14.1</div><h2>Introduction to Autoencoders</h2></div></div>
+
+    <p class="lede">An autoencoder is a neural network trained to reproduce its own input. It has two halves: an <b>encoder</b> h = f(x) that maps the input to an internal <b>code</b>, and a <b>decoder</b> x&#770; = g(h) that maps the code back to a reconstruction. Copying is trivial if the network is free — so we constrain it, forcing the code to be a useful, compressed summary rather than a perfect copy. What the encoder learns is the whole point; the reconstruction is just the training signal.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> imagine you have to describe a whole movie to a friend using only a five-word text message, and then your friend has to retell the whole movie from just those five words. To do a good job you can't waste words on tiny details — you have to capture the <b>essence</b>: "space wizards fight evil empire." Those five words are a squeezed summary that still lets the story be rebuilt.</p>
+      <p>An autoencoder is a machine that plays both roles. The first half (the <b>encoder</b>) squeezes a big input — a photo, say — down into a short "summary" of numbers called the <b>code</b>. The second half (the <b>decoder</b>) tries to rebuild the original photo from just that summary. Because the summary is short, the machine is forced to keep only what matters and drop the clutter — and that squeezed summary turns out to be an extremely useful thing to have.</p>
+    </div>
+
+    <div class="eqn"><span class="lbl">The two maps and the training objective</span><br>
+      h = <b>f(x)</b> &nbsp;(encode) ,&nbsp; x&#770; = <b>g(h)</b> = g(f(x)) &nbsp;(decode) &nbsp;&nbsp;⟹&nbsp;&nbsp; minimize <b>L(x, g(f(x)))</b> — a reconstruction loss</div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panel-t">Key ideas up front</div>
+        <ul class="kl">
+          <li><b>Unsupervised = </b>the "label" is the input itself, so no human annotation is needed. The data supervises the data.</li>
+          <li><b>Not perfect copying = </b>an autoencoder that copied flawlessly would be useless. We <i>want</i> imperfect reconstruction, so it learns to keep only useful structure.</li>
+          <li><b>The code is the prize = </b>after training we often discard the decoder and use h = f(x) as a learned feature representation.</li>
+          <li><b>Reconstruction loss = </b>mean squared error for real-valued inputs; cross-entropy for binary/pixel inputs.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <div class="panel-t">Architecture explorer <small>Drag the code size · watch the bottleneck</small></div>
+        <div class="netwrap"><svg id="aeSvg" viewBox="0 0 420 210" aria-label="An autoencoder architecture whose code layer resizes as you drag the slider"></svg></div>
+        <div class="slider"><div class="field"><label>Code size (bottleneck width)</label><input type="range" id="aeCode" min="1" max="8" value="2"></div><output id="aeCodeo" class="mono">2</output></div>
+        <div class="reads">
+          <div class="read pri"><i>Compression ratio</i><b id="aeRatio">—</b></div>
+          <div class="read good"><i>Type</i><b id="aeType" style="font-size:15px">—</b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">Representation learning</span></div>
+      <p>Autoencoders were a cornerstone of early <b>unsupervised feature learning</b>: train one on unlabeled data, then feed its codes to a small supervised model. They still shine when labels are scarce but raw data is abundant.</p>
+      <p>The encoder–decoder <b>shape</b> is everywhere in modern deep learning — U-Nets for segmentation and diffusion, sequence-to-sequence models for translation, and the compressive latents of generative models all inherit this "squeeze then rebuild" skeleton.</p>
+      <div class="case"><b>Where it shows up:</b> pretraining, dimensionality reduction, denoising, anomaly detection — and as the backbone of most generative architectures.</div>
+    </div>
+  </section>
+
+  <!-- ================= 02 UNDERCOMPLETE ================= -->
+  <section class="leg" id="l2">
+    <div class="leg-head"><div class="leg-no">02</div><div>
+      <div class="leg-kicker">The classic bottleneck · §14.1</div><h2>Undercomplete Autoencoders</h2></div></div>
+
+    <p class="lede">The simplest way to force an autoencoder to learn is to make the code <b>smaller</b> than the input. A code dimension less than the input dimension is called <b>undercomplete</b>: the network can't just pass the input through, so it must compress. Remarkably, a linear undercomplete autoencoder trained with squared error learns the same subspace as <b>PCA</b> — it discovers the directions of greatest variance in the data.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> suppose you must describe where every kid is standing in the playground, but you're only allowed to give <b>one number</b> per kid instead of two (no "x and y", just one). The smartest trick is to find the single line the kids are mostly spread along — say, from the swings to the slide — and just say how far along that line each kid is. You lose a little (their small sideways wiggle), but you keep the big picture with half the numbers.</p>
+      <p>That's exactly what an undercomplete autoencoder does. Forced to use fewer numbers than the input has, it hunts for the directions the data actually varies along and describes everything in terms of those. For a simple (linear) autoencoder, the best line to pick is the one statisticians call the <b>principal component</b> — so this kind of autoencoder rediscovers PCA all on its own.</p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Projection lab <small>Rotate the 1-D code axis · the best angle IS the principal component</small></div>
+      <div class="grid-lab">
+        <div class="cv"><canvas id="pcaCv" width="440" height="330"></canvas><div class="cv-cap">2-D data (teal); projection axis (violet); reconstructions (rose) with error bars.</div></div>
+        <div>
+          <div class="slider"><div class="field"><label>Code-axis angle θ</label><input type="range" id="pcaAng" min="0" max="180" value="20"></div><output id="pcaAngo" class="mono">20°</output></div>
+          <div class="reads">
+            <div class="read bad"><i>Reconstruction error (MSE)</i><b id="pcaErr">—</b></div>
+            <div class="read good"><i>Variance kept</i><b id="pcaVar">— <s>%</s></b></div>
+          </div>
+          <div class="ctl" style="margin-top:8px"><button class="chip mag" id="pcaBest">Snap to principal component</button></div>
+          <p style="font-size:13px;color:var(--ink2);margin-top:8px" id="pcaMsg">Rotate the axis and watch the reconstruction error. The angle that minimizes it — where the axis lies along the cloud's long direction — is exactly what PCA finds and what a linear autoencoder learns.</p>
+        </div>
+      </div>
+      <div class="note"><b>Why it matters.</b> Each point is squeezed to a single number (its position along the violet axis), then rebuilt. The perpendicular gap is what's lost. Minimizing that loss over the axis direction = maximizing kept variance = PCA.</div>
+    </div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panel-t">Undercomplete = compression by capacity</div>
+        <ul class="kl">
+          <li><b>Code dim &lt; input dim = </b>the bottleneck physically prevents copying, so learning is forced.</li>
+          <li><b>Linear + MSE ≈ PCA = </b>spans the same principal subspace; nonlinear encoders generalize PCA to curved manifolds.</li>
+          <li><b>Nonlinear power = </b>with nonlinear f and g, an undercomplete autoencoder learns a powerful nonlinear generalization of PCA — folding curved data onto a low-dimensional manifold.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <div class="panel-t">The capacity caveat</div>
+        <p style="font-size:14.5px">A bottleneck controls capacity <b>bluntly</b>. If the encoder and decoder are given too much power, even a small code can learn to copy perfectly — mapping each training point to a code without learning any useful structure.</p>
+        <p style="font-size:14.5px;color:var(--ink2)">That failure mode is why we often prefer to control capacity with a <b>penalty</b> instead of (or alongside) a narrow code — the regularized autoencoders of the next station.</p>
+      </div>
+    </div>
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">Dimensionality reduction</span></div>
+      <p>Undercomplete autoencoders are a <b>nonlinear alternative to PCA</b> for squeezing high-dimensional data into a few coordinates — useful for visualization, compression and as a preprocessing step before a classifier.</p>
+      <p>On data that lies on a curved manifold (faces, digits, sensor readings), a deep undercomplete autoencoder can capture structure that linear PCA misses, packing more fidelity into the same number of code units.</p>
+      <div class="case"><b>Where it shows up:</b> feature compression pipelines, manifold learning, and as the intuition-building baseline for every fancier autoencoder.</div>
+    </div>
+  </section>
+
+  <!-- ================= 03 REGULARIZED ================= -->
+  <section class="leg" id="l3">
+    <div class="leg-head"><div class="leg-no">03</div><div>
+      <div class="leg-kicker">Constrain the code, not the width · §14.2</div><h2>Regularized Autoencoders</h2></div></div>
+
+    <p class="lede">Instead of forcing compression with a narrow bottleneck, a regularized autoencoder keeps the code wide but adds a <b>penalty</b> that shapes what the code can be. This lets even an overcomplete autoencoder (code larger than input) learn something useful. The three classics: <b>sparse</b> (few units active), <b>denoising</b> (reconstruct clean input from a corrupted copy), and <b>contractive</b> (code insensitive to small input changes).</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> instead of forcing you to describe the movie in exactly five words, imagine three other kinds of rules. Rule one: you have a big vocabulary, but you may only <b>use a few words at a time</b> (sparse). Rule two: I hand you a <b>smudged, torn</b> version of the poster and you must describe the real, clean movie (denoising). Rule three: if I show you two almost-identical posters, your descriptions must be <b>almost identical too</b> — don't overreact to tiny changes (contractive).</p>
+      <p>Each rule teaches good habits without shrinking your vocabulary. Sparse habits make you name only the important things. Denoising habits make you see through mess to the real thing. Contractive habits make you steady, ignoring meaningless jitter. Regularized autoencoders bake exactly these habits into the code with a small penalty added to the reconstruction score.</p>
+    </div>
+
+    <div class="three">
+      <div class="panel">
+        <div class="panel-t">Sparse</div>
+        <p style="font-size:14px">Add a penalty on code activity Ω(h) (e.g. an L¹ term or a target average activation). Most code units sit near zero; only a few fire for any given input, so each unit specializes in a distinct feature.</p>
+        <div class="eqn" style="font-size:12.5px">L(x, g(f(x))) + <b>Ω(h)</b></div>
+      </div>
+      <div class="panel">
+        <div class="panel-t">Denoising (DAE)</div>
+        <p style="font-size:14px">Corrupt the input to x&#771;, then ask the decoder to recover the <b>clean</b> x. To undo noise the network must learn the data's true structure, not the identity map.</p>
+        <div class="eqn" style="font-size:12.5px">minimize <b>L(x, g(f(x&#771;)))</b></div>
+      </div>
+      <div class="panel">
+        <div class="panel-t">Contractive (CAE)</div>
+        <p style="font-size:14px">Penalize the sensitivity of the code to the input — the squared norm of the encoder's Jacobian. The code stays flat along unimportant directions and changes only along the data manifold.</p>
+        <div class="eqn" style="font-size:12.5px">L + <b>λ‖∂f/∂x‖²</b></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Denoising lab <small>Corrupt a pattern · the autoencoder recovers the clean version</small></div>
+      <div class="grid-lab">
+        <div>
+          <div class="two" style="grid-template-columns:1fr 1fr;gap:10px">
+            <div class="cv"><canvas id="daeClean" width="150" height="150"></canvas><div class="cv-cap">Clean input x</div></div>
+            <div class="cv"><canvas id="daeNoisy" width="150" height="150"></canvas><div class="cv-cap">Corrupted x&#771;</div></div>
+          </div>
+          <div class="cv" style="margin-top:10px"><canvas id="daeRecon" width="150" height="150"></canvas><div class="cv-cap">Reconstruction g(f(x&#771;)) — target is the clean x</div></div>
+        </div>
+        <div>
+          <div class="slider"><div class="field"><label>Corruption level</label><input type="range" id="daeNoise" min="0" max="70" value="30"></div><output id="daeNoiseo" class="mono">30%</output></div>
+          <div class="reads">
+            <div class="read bad"><i>Noise removed</i><b id="daeRem">— <s>%</s></b></div>
+            <div class="read good"><i>Recon quality</i><b id="daeQual" style="font-size:15px">—</b></div>
+          </div>
+          <div class="ctl" style="margin-top:8px"><button class="chip mag" id="daeResample">New corruption</button></div>
+          <ul class="kl" style="margin-top:10px">
+            <li><b>The trick = </b>the map from clean → noisy is easy; learning to invert it forces the network to know what "clean" looks like.</li>
+            <li><b>Manifold view = </b>a DAE learns to project corrupted points back onto the data manifold — the reconstruction points "downhill" toward real data.</li>
+          </ul>
+          <p style="font-size:12.5px;color:var(--ink2);margin-top:6px">The reconstruction here is illustrative (a learned denoiser is emulated by neighbourhood smoothing) — the point is the clean → corrupt → recover objective.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">Denoising &amp; robust features</span></div>
+      <p><b>Denoising autoencoders</b> are used directly to clean up images, audio and sensor data, and their objective — predict the clean signal from a corrupted one — is the direct ancestor of the noising/denoising process at the heart of modern <b>diffusion models</b>.</p>
+      <p><b>Sparse autoencoders</b> produce interpretable, specialized features and have re-emerged as a leading tool for <b>interpreting the internal activations of large models</b>.</p>
+      <div class="case"><b>Where it shows up:</b> image/audio denoising, robust representation learning, diffusion-model training, and mechanistic interpretability.</div>
+    </div>
+  </section>
+  <!-- ================= 04 POWER, SIZE & DEPTH ================= -->
+  <section class="leg" id="l4">
+    <div class="leg-head"><div class="leg-no">04</div><div>
+      <div class="leg-kicker">Capacity, carefully · §14.3</div><h2>Representational Power, Layer Size &amp; Depth</h2></div></div>
+
+    <p class="lede">How expressive is an autoencoder? With enough hidden units, even a single-hidden-layer encoder can approximate any mapping — but shallow width is an inefficient way to buy power, and unconstrained capacity invites the trivial identity solution. <b>Depth</b> is the efficient lever: stacking layers can represent complex codes with exponentially fewer units and less data than a shallow net, provided regularization keeps the model honest.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> imagine building a shape out of LEGO. You <b>could</b> lay every brick flat in one giant single layer — it works, but you'd need a mountain of bricks. Or you can build <b>upward</b> in stories, where each new story reuses and combines the shapes below it. Building up lets you make far more intricate things with far fewer bricks.</p>
+      <p>Autoencoders are the same. A wide-but-shallow one can technically learn a lot, but it needs a huge number of units and lots of examples. A <b>deep</b> one stacks small transformations, each building on the last, so it captures complicated patterns much more cheaply. The catch: give a network <b>too much</b> freedom and it takes the lazy shortcut of just memorising the input (the "identity" copy), so we still lean on a bottleneck or a penalty to keep it learning something real.</p>
+    </div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panel-t">The three levers</div>
+        <ul class="kl">
+          <li><b>Representational power = </b>a sufficiently wide single hidden layer is a universal approximator, so autoencoders inherit that expressiveness in principle.</li>
+          <li><b>Width (layer size) = </b>buys power slowly and expensively; a huge shallow code can approximate anything but needs many units and lots of data.</li>
+          <li><b>Depth = </b>buys power efficiently — deep encoders/decoders can need exponentially fewer parameters and generalize better, plus greedy layer-wise pretraining once made them trainable.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <div class="panel-t">Shallow vs deep, at a glance</div>
+        <div class="netwrap"><svg id="depthSvg" viewBox="0 0 420 190" aria-label="A shallow autoencoder beside a deep one"></svg></div>
+        <p style="font-size:13px;color:var(--ink2);margin-top:8px">Both compress to the same code size, but the deep stack composes simple transforms into a richer one — reaching the same fidelity with fewer total units.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Capacity lab <small>Slide capacity · watch reconstruction vs the identity-copy trap</small></div>
+      <div class="grid-lab">
+        <div class="cv"><canvas id="capCv" width="440" height="270"></canvas><div class="cv-cap">Reconstruction error vs code size, with and without regularization.</div></div>
+        <div>
+          <div class="slider"><div class="field"><label>Code size (fraction of input dim)</label><input type="range" id="capSize" min="10" max="200" value="60"></div><output id="capSizeo" class="mono">0.60×</output></div>
+          <div class="ctl" id="capReg"></div>
+          <div class="reads">
+            <div class="read pri"><i>Train reconstruction</i><b id="capTrain">—</b></div>
+            <div class="read bad"><i>Learns real structure?</i><b id="capReal" style="font-size:15px">—</b></div>
+          </div>
+          <p style="font-size:13px;color:var(--ink2);margin-top:8px" id="capMsg">Below 1× (undercomplete) the bottleneck forces real learning. Push past 1× (overcomplete) with regularization OFF and the network cheats — near-zero training error but no useful code (the identity trap). Turn regularization ON and even an overcomplete code stays meaningful.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">Deep, regularized codes</span></div>
+      <p>Real autoencoders are <b>deep and regularized</b>, not shallow bottlenecks. Depth captures the layered structure of real data — edges → parts → objects — while a penalty (sparsity, denoising, contraction) prevents the identity shortcut.</p>
+      <p>This is why a deep denoising or sparse autoencoder learns far more useful features than a shallow undercomplete one, even at the same code size.</p>
+      <div class="case"><b>Rule of thumb:</b> prefer depth over sheer width for power; and never rely on capacity alone — pair it with a bottleneck or an explicit penalty.</div>
+    </div>
+  </section>
+
+  <!-- ================= 05 STOCHASTIC ENCODERS/DECODERS ================= -->
+  <section class="leg" id="l5">
+    <div class="leg-head"><div class="leg-no">05</div><div>
+      <div class="leg-kicker">From points to distributions · §14.4</div><h2>Stochastic Encoders and Decoders</h2></div></div>
+
+    <p class="lede">So far the encoder produced one code per input. A <b>stochastic</b> autoencoder goes probabilistic: the encoder outputs a <b>distribution</b> p<sub>encoder</sub>(h | x) over codes, and the decoder a distribution p<sub>decoder</sub>(x | h) over reconstructions. Training minimizes the negative log-likelihood of the data. This probabilistic view unifies autoencoders with latent-variable models and leads directly to the variational autoencoder.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> instead of the encoder saying "the summary is exactly 7," it says "the summary is <b>around</b> 7, give or take a bit" — a little cloud of possibilities rather than a single dot. The decoder, too, doesn't insist on one exact picture; it describes a range of pictures that would fit the summary.</p>
+      <p>Why add this fuzziness on purpose? Because it makes the code space <b>smooth and filled-in</b>: nearby summaries give similar pictures, and you can even <b>pick a new summary at random</b> and get a brand-new but sensible picture out. That last trick — sampling a code and decoding it into fresh data — is what turns an autoencoder into a <b>generator</b>, the idea behind the variational autoencoder (VAE).</p>
+    </div>
+
+    <div class="eqn"><span class="lbl">Encoder and decoder as distributions</span><br>
+      encode: <b>p<sub>encoder</sub>(h | x)</b> &nbsp;·&nbsp; decode: <b>p<sub>decoder</sub>(x | h)</b> &nbsp;&nbsp;⟹&nbsp;&nbsp; train to minimize &nbsp;−log p<sub>decoder</sub>(x | h) &nbsp;(+ a prior term for VAEs)</div>
+
+    <div class="panel">
+      <div class="panel-t">Sampling lab <small>The encoder emits a code cloud · sample it · decode</small></div>
+      <div class="grid-lab">
+        <div class="cv"><canvas id="stoCv" width="440" height="300"></canvas><div class="cv-cap">Left: code distribution p(h|x) (violet cloud). Right: decoded samples spread around x&#770;.</div></div>
+        <div>
+          <div class="slider"><div class="field"><label>Encoder uncertainty σ</label><input type="range" id="stoSig" min="2" max="90" value="30"></div><output id="stoSigo" class="mono">0.30</output></div>
+          <div class="reads">
+            <div class="read pri"><i>Code spread</i><b id="stoSpread">—</b></div>
+            <div class="read good"><i>Behaviour</i><b id="stoBeh" style="font-size:14px">—</b></div>
+          </div>
+          <div class="ctl" style="margin-top:8px"><button class="chip mag" id="stoResample">Draw new samples</button></div>
+          <p style="font-size:13px;color:var(--ink2);margin-top:8px" id="stoMsg">With σ near 0 the encoder is deterministic — one code, one reconstruction. Raise σ and each pass samples a different code, producing a spread of plausible reconstructions. This filled-in, samplable code space is what lets a VAE generate brand-new data.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panel-t">Why go stochastic</div>
+        <ul class="kl">
+          <li><b>Generation = </b>sample a code from the prior, decode it, and get a novel data point — a true generative model.</li>
+          <li><b>Smooth latent space = </b>the noise forces nearby codes to decode to similar outputs, so the code space has no meaningless gaps.</li>
+          <li><b>Principled objective = </b>maximizing data likelihood ties autoencoders to the broader family of probabilistic latent-variable models.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <div class="panel-t">The road to the VAE</div>
+        <p style="font-size:14.5px">A <b>variational autoencoder</b> is the flagship stochastic autoencoder: the encoder outputs a Gaussian over the code, a KL term pulls that toward a standard-normal prior, and the reparameterization trick lets gradients flow through the sampling step.</p>
+        <p style="font-size:14.5px;color:var(--ink2)">The payoff is a smooth latent space you can sample and interpolate — decode a random code and get a new face, a new digit, a new molecule.</p>
+      </div>
+    </div>
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">Generative modelling</span></div>
+      <p>Stochastic encoders/decoders underpin <b>VAEs</b>, widely used for generating and interpolating images, audio and molecules, and for learning smooth, disentangled representations.</p>
+      <p>The same latent-then-decode structure powers the <b>latent diffusion</b> models behind modern image generators — a VAE compresses images to a latent space where the generative process actually runs.</p>
+      <div class="case"><b>Where it shows up:</b> VAEs, latent diffusion, representation learning where a smooth, samplable code space matters.</div>
+    </div>
+  </section>
+
+  <!-- ================= 06 APPLICATIONS ================= -->
+  <section class="leg" id="l6">
+    <div class="leg-head"><div class="leg-no">06</div><div>
+      <div class="leg-kicker">Where the bottleneck pays off · §14.5–14.9</div><h2>Applications of Encoder–Decoder Models</h2></div></div>
+
+    <p class="lede">Once you can compress data into a meaningful code and rebuild it, a whole family of applications opens up. Some use the <b>code</b> (compression, retrieval, features); some use the <b>reconstruction</b> (denoising, anomaly detection); and some generalize the shape to map one sequence to another (translation, captioning). The common thread is the encoder–decoder skeleton.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> once you own a machine that can shrink things into tidy summaries and rebuild them, you can do lots of handy jobs. Summaries take less room to store (compression). Similar things get similar summaries, so you can <b>find look-alikes</b> fast (search). If something rebuilds badly, it's probably <b>weird or broken</b> (spotting the odd one out). And if the "summary" of an English sentence can be rebuilt as French, you've got a <b>translator</b>.</p>
+    </div>
+
+    <div class="cards" id="aeApps"></div>
+
+    <div class="panel">
+      <div class="panel-t">Anomaly-detection lab <small>Flag points the autoencoder can't reconstruct well</small></div>
+      <div class="grid-lab">
+        <div class="cv"><canvas id="anCv" width="440" height="300"></canvas><div class="cv-cap">Normal data (teal) on a manifold; test points colored by reconstruction error.</div></div>
+        <div>
+          <div class="slider"><div class="field"><label>Error threshold</label><input type="range" id="anThr" min="5" max="95" value="45"></div><output id="anThro" class="mono">0.45</output></div>
+          <div class="reads">
+            <div class="read good"><i>Flagged as normal</i><b id="anNorm">—</b></div>
+            <div class="read bad"><i>Flagged as anomaly</i><b id="anAnom">—</b></div>
+          </div>
+          <p style="font-size:13px;color:var(--ink2);margin-top:8px">An autoencoder trained only on normal data reconstructs normal points well (low error) and unusual points poorly (high error). Set a threshold on reconstruction error and everything above it is flagged as an anomaly — no anomaly labels required.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Sequence-to-sequence: the encoder–decoder for translation</div>
+      <div class="pipe">
+        <b>"the cat sat"</b><span>→</span><b>Encoder (reads all words)</b><span>→</span><b>context vector</b><span>→</span><b>Decoder (writes words)</b><span>→</span><b>"le chat s'est assis"</b>
+      </div>
+      <p style="font-size:14.5px">The encoder consumes a whole input sequence into a summary vector (or a set of vectors); the decoder generates the output sequence from it. This is the architecture behind neural machine translation, image captioning, and speech recognition — and, with attention added, it grew into the Transformer.</p>
+    </div>
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">Everywhere</span></div>
+      <p>Encoder–decoder models are one of deep learning's most reused shapes: <b>semantic hashing</b> for fast retrieval, <b>anomaly detection</b> in fraud and industrial monitoring, <b>denoising</b> and super-resolution, <b>seq2seq</b> translation and summarization, and the <b>latent codecs</b> inside generative systems.</p>
+      <div class="case"><b>Where it shows up:</b> search &amp; recommendation, monitoring &amp; security, image/audio restoration, machine translation, and the backbone of modern generative AI.</div>
+    </div>
+  </section>
+
+  <!-- ================= 07 REVISION + TAKEAWAYS ================= -->
+  <section class="leg" id="l7">
+    <div class="leg-head"><div class="leg-no">Σ</div><div>
+      <div class="leg-kicker">Consolidate · then carry off the code</div><h2>Revision, Quiz &amp; Key Takeaways</h2></div></div>
+
+    <p class="lede">Twelve checks across the bottleneck — from the basic encoder/decoder through undercomplete, regularized and stochastic autoencoders to their applications. Pick an answer to see the reasoning.</p>
+
+    <div class="panel">
+      <div class="panel-t">Self-test <small><span id="score">0 / 12</span> correct</small></div>
+      <div id="quiz"></div>
+      <div class="ctl" style="margin-top:14px"><button class="chip mag" id="qReset">Reset quiz</button></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Likely long-answer questions</div>
+      <ul class="kl">
+        <li>Define an autoencoder. Name its two components, write the training objective, and explain why perfect reconstruction is undesirable.</li>
+        <li>What is an undercomplete autoencoder? Prove/explain why a linear one with squared-error loss recovers PCA.</li>
+        <li>Contrast sparse, denoising and contractive autoencoders. Give each one's penalty or objective and what habit it instills.</li>
+        <li>Why can a bottleneck alone fail to produce useful codes? How do regularized autoencoders let an overcomplete code still be useful?</li>
+        <li>Discuss representational power, layer size and depth. Why is depth a more efficient source of power than width?</li>
+        <li>Explain stochastic encoders and decoders. Write p_encoder(h|x) and p_decoder(x|h) and describe how this leads to the VAE.</li>
+        <li>Describe three applications of encoder–decoder models, one using the code and one using the reconstruction.</li>
+        <li>How does an autoencoder perform anomaly detection without anomaly labels?</li>
+      </ul>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Glossary <small>Click any dotted term anywhere on the page</small></div>
+      <input class="search" id="glossQ" type="search" placeholder="Filter terms — try 'pca' or 'vae'">
+      <div class="gloss no-abbr" id="gloss"></div>
+    </div>
+
+    <div class="headline">
+      <h3>If you remember only one thing</h3>
+      <p>An autoencoder learns to <b>copy its input through a constraint</b> — a narrow code, a penalty, or added noise. The constraint is everything: it's what stops trivial copying and forces the encoder to distill the data's essential structure into a code. Undercomplete, sparse, denoising, contractive and stochastic autoencoders are just <b>different ways of constraining the copy</b>, and the encoder–decoder skeleton they share powers compression, denoising, retrieval, generation and translation.</p>
+    </div>
+
+    <div class="tk">
+      <div class="tk-item"><i>01</i><div><h4>Copy, but constrained</h4>
+        <p>x → h = f(x) → x&#770; = g(h), trained on reconstruction loss. We want imperfect copying so the code stays useful; the code is the prize.</p></div></div>
+      <div class="tk-item"><i>02</i><div><h4>Undercomplete = compression</h4>
+        <p>Code smaller than input forces learning; a linear undercomplete AE with MSE recovers the PCA subspace, and nonlinear ones generalize it.</p></div></div>
+      <div class="tk-item"><i>03</i><div><h4>Regularize instead of narrow</h4>
+        <p>Sparse (few active units), denoising (recover clean from corrupted), contractive (flat Jacobian) shape the code without a tight bottleneck.</p></div></div>
+      <div class="tk-item"><i>04</i><div><h4>Depth over width</h4>
+        <p>Sufficiently wide nets are universal, but depth buys power far more efficiently. Unchecked capacity invites the identity-copy trap.</p></div></div>
+      <div class="tk-item"><i>05</i><div><h4>Go stochastic to generate</h4>
+        <p>Encoder/decoder as distributions p(h|x), p(x|h) give a smooth, samplable latent space — the road to the VAE and latent diffusion.</p></div></div>
+      <div class="tk-item"><i>06</i><div><h4>The encoder–decoder is everywhere</h4>
+        <p>Compression, semantic hashing, denoising, anomaly detection, seq2seq translation — all inherit the squeeze-then-rebuild skeleton.</p></div></div>
+    </div>
+
+    <div class="foot no-abbr">
+      <span>CHAPTER 14 · AUTOENCODERS</span>
+      <span>6 STATIONS · 6 LIVE LABS · EVERYTHING COMPUTED IN YOUR BROWSER</span>
+      <span>WALK THE BOTTLENECK AGAIN BEFORE THE EXAM</span>
+    </div>
+  </section>
+
+  </main>
+</div>
+<script>
+(function(){
+"use strict";
+const $=(s,r)=>(r||document).querySelector(s), $$=(s,r)=>[...(r||document).querySelectorAll(s)];
+const fmt=(n,d)=>Number(n).toFixed(d===undefined?1:d);
+const NS="http://www.w3.org/2000/svg";
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function gauss(rng){let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+function chipGroup(host,labels,initial,onPick){
+  const el=$(host); el.innerHTML="";
+  const btns=labels.map((lb,i)=>{
+    const b=document.createElement("button");
+    b.className="chip"+(i===initial?" mag on":""); b.textContent=lb;
+    b.addEventListener("click",()=>{btns.forEach(x=>x.classList.remove("on"));b.classList.add("on");onPick(i);});
+    el.appendChild(b); return b;
+  });
+  return btns;
+}
+
+/* ---------- hero net ---------- */
+(function(){
+  const g=$("#aeNet"); if(!g) return;
+  const cols=[{n:7,x:120,c:"#0F7C87"},{n:5,x:300,c:"#6C30D9"},{n:2,x:480,c:"#C81C6E"},{n:5,x:660,c:"#6C30D9"},{n:7,x:840,c:"#0F7C87"}];
+  const cy=190, gap=30;
+  const pos=cols.map(col=>{const ys=[];for(let i=0;i<col.n;i++){ys.push(cy+(i-(col.n-1)/2)*gap);}return ys;});
+  let s="";
+  // edges
+  for(let c=0;c<cols.length-1;c++){
+    pos[c].forEach(y1=>pos[c+1].forEach(y2=>{
+      s+='<line x1="'+cols[c].x+'" y1="'+y1+'" x2="'+cols[c+1].x+'" y2="'+y2+'" stroke="#14171B" stroke-opacity=".07" stroke-width="1"/>';
+    }));
+  }
+  // nodes
+  cols.forEach((col,c)=>pos[c].forEach(y=>{
+    s+='<circle cx="'+col.x+'" cy="'+y+'" r="8" fill="#F7F8F3" stroke="'+col.c+'" stroke-width="2"/>';
+  }));
+  g.innerHTML=s;
+})();
+
+/* ---------- rail + progress ---------- */
+const legs=$$(".leg"), links=$$("#rail a");
+function onScroll(){
+  const y=window.scrollY+140; let idx=0;
+  legs.forEach((l,i)=>{ if(l.offsetTop<=y) idx=i; });
+  links.forEach((a,i)=>a.classList.toggle("on",i===idx));
+  const d=document.documentElement;
+  const p=Math.min(100,Math.max(0,(window.scrollY/(d.scrollHeight-d.clientHeight))*100));
+  $("#progFill").style.width=p+"%"; $("#progTxt").textContent=Math.round(p)+"%";
+}
+window.addEventListener("scroll",onScroll,{passive:true}); onScroll();
+const railEl=$("#rail"),hamEl=$("#ham"),railBg=$("#railBg");
+function railSet(open){railEl.classList.toggle("open",open);hamEl.classList.toggle("open",open);railBg.classList.toggle("on",open);
+  hamEl.setAttribute("aria-expanded",open?"true":"false");document.body.style.overflow=open?"hidden":"";}
+hamEl.addEventListener("click",()=>railSet(!railEl.classList.contains("open")));
+$("#railX").addEventListener("click",()=>railSet(false));
+railBg.addEventListener("click",()=>railSet(false));
+document.addEventListener("keydown",e=>{if(e.key==="Escape")railSet(false);});
+links.forEach(aEl=>aEl.addEventListener("click",()=>railSet(false)));
+
+/* ================= ST01 architecture explorer ================= */
+(function(){
+  const IN=8;
+  function draw(){
+    const code=+$("#aeCode").value; $("#aeCodeo").textContent=code;
+    const cols=[{n:IN,x:50,c:"#0F7C87"},{n:5,x:140,c:"#6C30D9"},{n:code,x:210,c:"#C81C6E"},{n:5,x:280,c:"#6C30D9"},{n:IN,x:370,c:"#0F7C87"}];
+    const cy=100, gap=13;
+    const pos=cols.map(col=>{const ys=[];for(let i=0;i<col.n;i++)ys.push(cy+(i-(col.n-1)/2)*gap);return ys;});
+    let s="";
+    for(let c=0;c<cols.length-1;c++) pos[c].forEach(y1=>pos[c+1].forEach(y2=>{
+      s+='<line x1="'+cols[c].x+'" y1="'+y1+'" x2="'+cols[c+1].x+'" y2="'+y2+'" stroke="#14171B" stroke-opacity=".08" stroke-width="1"/>';}));
+    cols.forEach((col,c)=>pos[c].forEach(y=>{s+='<circle cx="'+col.x+'" cy="'+y+'" r="6" fill="#fff" stroke="'+col.c+'" stroke-width="2"/>';}));
+    s+='<text x="210" y="184" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9" fill="#C81C6E">code = '+code+'</text>';
+    s+='<text x="50" y="184" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9" fill="#0F7C87">x ('+IN+')</text>';
+    s+='<text x="370" y="184" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9" fill="#0F7C87">x&#770; ('+IN+')</text>';
+    $("#aeSvg").innerHTML=s;
+    $("#aeRatio").textContent=fmt(IN/code,2)+"×";
+    const el=$("#aeType");
+    if(code<IN){el.textContent="undercomplete";el.parentElement.classList.remove("bad","warn");el.parentElement.classList.add("good");}
+    else{el.textContent="complete (risky)";el.parentElement.classList.remove("good");el.parentElement.classList.add("warn");}
+  }
+  $("#aeCode").addEventListener("input",draw); draw();
+})();
+
+/* ================= ST02 PCA projection lab ================= */
+(function(){
+  const cv=$("#pcaCv"),cx=cv.getContext("2d"),W=cv.width,H=cv.height;
+  const ox=W/2, oy=H/2, sc=52;
+  const X=x=>ox+x*sc, Y=y=>oy-y*sc;
+  // generate correlated data
+  const rng=mulberry32(7);
+  const pts=[]; for(let i=0;i<44;i++){const a=gauss(rng)*1.7, b=gauss(rng)*0.5;
+    // rotate by ~32deg to make principal axis oblique
+    const th=32*Math.PI/180; pts.push([a*Math.cos(th)-b*Math.sin(th), a*Math.sin(th)+b*Math.cos(th)]);}
+  // total variance & covariance
+  let sxx=0,syy=0,sxy=0; pts.forEach(p=>{sxx+=p[0]*p[0];syy+=p[1]*p[1];sxy+=p[0]*p[1];});
+  const n=pts.length; sxx/=n;syy/=n;sxy/=n; const totVar=sxx+syy;
+  // principal eigenvector angle
+  const pcAng=0.5*Math.atan2(2*sxy,sxx-syy);
+  function R(){
+    const ang=(+$("#pcaAng").value)*Math.PI/180; $("#pcaAngo").textContent=(+$("#pcaAng").value)+"°";
+    const u=[Math.cos(ang),Math.sin(ang)];
+    cx.clearRect(0,0,W,H);cx.fillStyle="#fff";cx.fillRect(0,0,W,H);
+    cx.strokeStyle="#e3e5df";cx.beginPath();cx.moveTo(X(-3.5),Y(0));cx.lineTo(X(3.5),Y(0));cx.moveTo(X(0),Y(-3));cx.lineTo(X(0),Y(3));cx.stroke();
+    // axis line
+    cx.strokeStyle="#6C30D9";cx.lineWidth=2;cx.beginPath();cx.moveTo(X(-3.4*u[0]),Y(-3.4*u[1]));cx.lineTo(X(3.4*u[0]),Y(3.4*u[1]));cx.stroke();
+    let err=0, keptVar=0;
+    pts.forEach(p=>{
+      const t=p[0]*u[0]+p[1]*u[1]; const rec=[t*u[0],t*u[1]];
+      keptVar+=t*t;
+      // error segment
+      cx.strokeStyle="rgba(200,28,110,.35)";cx.lineWidth=1;cx.beginPath();cx.moveTo(X(p[0]),Y(p[1]));cx.lineTo(X(rec[0]),Y(rec[1]));cx.stroke();
+      err+=(p[0]-rec[0])**2+(p[1]-rec[1])**2;
+      // reconstruction point
+      cx.fillStyle="#C81C6E";cx.beginPath();cx.arc(X(rec[0]),Y(rec[1]),2.6,0,7);cx.fill();
+      // data point
+      cx.fillStyle="#0F7C87";cx.beginPath();cx.arc(X(p[0]),Y(p[1]),3.4,0,7);cx.fill();
+    });
+    err/=n; keptVar/=n;
+    $("#pcaErr").textContent=fmt(err,3);
+    $("#pcaVar").innerHTML=fmt(keptVar/totVar*100,0)+" <s>%</s>";
+    const near=Math.abs(((+$("#pcaAng").value)-((pcAng*180/Math.PI+180)%180))+0)<3;
+    $("#pcaMsg").textContent= near
+      ? "This is (near) the principal component: the axis lies along the cloud's long direction, reconstruction error is at its minimum and kept variance at its maximum — exactly PCA's solution."
+      : "Rotate toward the cloud's long direction to shrink the pink error segments. The minimizing angle is the principal component.";
+  }
+  $("#pcaAng").addEventListener("input",R);
+  $("#pcaBest").addEventListener("click",()=>{let deg=(pcAng*180/Math.PI); deg=((deg%180)+180)%180; $("#pcaAng").value=Math.round(deg); R();});
+  R();
+})();
+
+/* ================= ST03 denoising lab ================= */
+(function(){
+  const N=15, cell=10;
+  // clean ring pattern
+  const clean=[]; const c=(N-1)/2, r0=4.2, r1=6.2;
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){const d=Math.hypot(x-c,y-c);clean.push(d>=r0&&d<=r1?1:0);}
+  let seed=3;
+  function drawGrid(cvId,arr){
+    const cv=$(cvId),cx=cv.getContext("2d");
+    cx.clearRect(0,0,cv.width,cv.height);cx.fillStyle="#fff";cx.fillRect(0,0,cv.width,cv.height);
+    for(let y=0;y<N;y++)for(let x=0;x<N;x++){const v=arr[y*N+x];
+      cx.fillStyle=v?"#14171B":"#eef0ea";cx.fillRect(x*cell+1,y*cell+1,cell-2,cell-2);}
+  }
+  function corrupt(level,sd){
+    const rng=mulberry32(sd); const out=clean.slice(); const flipped=[];
+    for(let i=0;i<out.length;i++){ if(rng()<level){out[i]=out[i]?0:1; flipped.push(i);} }
+    return {out,flipped};
+  }
+  function denoise(noisy){
+    // 3x3 majority vote (emulated learned denoiser)
+    const out=noisy.slice();
+    for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+      let sum=0,cnt=0;
+      for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const nx=x+dx,ny=y+dy;
+        if(nx>=0&&nx<N&&ny>=0&&ny<N){sum+=noisy[ny*N+nx];cnt++;}}
+      out[y*N+x]= (sum/cnt)>=0.5?1:0;
+    }
+    return out;
+  }
+  function R(){
+    const level=(+$("#daeNoise").value)*0.01; $("#daeNoiseo").textContent=(+$("#daeNoise").value)+"%";
+    const {out:noisy,flipped}=corrupt(level,seed);
+    const recon=denoise(noisy);
+    drawGrid("#daeClean",clean); drawGrid("#daeNoisy",noisy); drawGrid("#daeRecon",recon);
+    // noise removed: of flipped pixels, how many recon matches clean
+    let restored=0; flipped.forEach(i=>{if(recon[i]===clean[i])restored++;});
+    const rem= flipped.length? restored/flipped.length*100 : 100;
+    $("#daeRem").innerHTML=fmt(rem,0)+" <s>%</s>";
+    // recon quality: pixel accuracy vs clean
+    let acc=0; for(let i=0;i<clean.length;i++) if(recon[i]===clean[i])acc++;
+    acc=acc/clean.length*100;
+    const el=$("#daeQual");
+    let q= acc>92?"excellent":(acc>80?"good":(acc>68?"fair":"degraded"));
+    el.textContent=q; el.parentElement.classList.remove("good","bad","warn");
+    el.parentElement.classList.add(acc>80?"good":(acc>68?"warn":"bad"));
+  }
+  $("#daeNoise").addEventListener("input",R);
+  $("#daeResample").addEventListener("click",()=>{seed=(seed*1103515245+12345)&0x7fffffff;R();});
+  R();
+})();
+
+/* ================= ST04 depth diagram ================= */
+(function(){
+  const g=$("#depthSvg"); if(!g) return;
+  function net(cx0,cols,label){
+    let s=''; const cy=88,gap=15;
+    const pos=cols.map(col=>{const ys=[];for(let i=0;i<col.n;i++)ys.push(cy+(i-(col.n-1)/2)*gap);return ys;});
+    for(let c=0;c<cols.length-1;c++) pos[c].forEach(y1=>pos[c+1].forEach(y2=>{
+      s+='<line x1="'+(cx0+cols[c].x)+'" y1="'+y1+'" x2="'+(cx0+cols[c+1].x)+'" y2="'+y2+'" stroke="#14171B" stroke-opacity=".08"/>';}));
+    cols.forEach((col,c)=>pos[c].forEach(y=>{s+='<circle cx="'+(cx0+col.x)+'" cy="'+y+'" r="5" fill="#fff" stroke="'+col.c+'" stroke-width="1.8"/>';}));
+    s+='<text x="'+(cx0+30)+'" y="176" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9.5" fill="#4B515A">'+label+'</text>';
+    return s;
+  }
+  const shallow=[{n:6,x:0,c:"#0F7C87"},{n:2,x:60,c:"#C81C6E"},{n:6,x:120,c:"#0F7C87"}];
+  const deep=[{n:6,x:0,c:"#0F7C87"},{n:4,x:44,c:"#6C30D9"},{n:2,x:88,c:"#C81C6E"},{n:4,x:132,c:"#6C30D9"},{n:6,x:176,c:"#0F7C87"}];
+  g.innerHTML=net(20,shallow,"shallow")+'<line x1="200" y1="24" x2="200" y2="152" stroke="#d5d8d0" stroke-dasharray="4 4"/>'+net(212,deep,"deep");
+})();
+
+/* ================= ST04 capacity lab ================= */
+(function(){
+  const cv=$("#capCv"),cx=cv.getContext("2d"),W=cv.width,H=cv.height;
+  let reg=1; // 1 on, 0 off
+  chipGroup("#capReg",["Regularization: ON","Regularization: OFF"],0,i=>{reg=i===0?1:0;R();});
+  const x0=0.1,x1=2.0, ymax=0.75;
+  const X=x=>44+(x-x0)/(x1-x0)*(W-64), Y=v=>H-30-(v/ymax)*(H-50);
+  const noReg=x=>Math.max(0.015,0.62*Math.exp(-2.3*x));
+  const withReg=x=>0.12+0.5*Math.exp(-2.6*x);
+  function curve(fn,col,dash){cx.strokeStyle=col;cx.lineWidth=2.2;cx.setLineDash(dash||[]);cx.beginPath();
+    for(let i=0;i<=180;i++){const x=x0+(x1-x0)*i/180;const px=X(x),py=Y(clamp(fn(x),0,ymax));i===0?cx.moveTo(px,py):cx.lineTo(px,py);}cx.stroke();cx.setLineDash([]);}
+  function R(){
+    const size=(+$("#capSize").value)*0.01; $("#capSizeo").textContent=fmt(size,2)+"×";
+    cx.clearRect(0,0,W,H);cx.fillStyle="#fff";cx.fillRect(0,0,W,H);
+    cx.strokeStyle="#c9ccc4";cx.beginPath();cx.moveTo(X(x0),Y(0));cx.lineTo(X(x1),Y(0));cx.moveTo(X(x0),Y(0));cx.lineTo(X(x0),Y(ymax));cx.stroke();
+    cx.fillStyle="#9aa";cx.font="10px 'IBM Plex Mono',monospace";
+    cx.fillText("recon error",6,Y(ymax)+10); cx.fillText("code size ×input",X(x1)-118,Y(0)+18);
+    // complete line at 1.0
+    cx.strokeStyle="#d5d8d0";cx.setLineDash([4,4]);cx.beginPath();cx.moveTo(X(1),Y(0));cx.lineTo(X(1),Y(ymax));cx.stroke();cx.setLineDash([]);
+    cx.fillStyle="#4B515A";cx.fillText("1× (complete)",X(1)-30,Y(ymax)+4);
+    cx.fillText("under",X(0.45)-10,Y(0)+30); cx.fillText("over-complete",X(1.5)-20,Y(0)+30);
+    curve(withReg,"#6C30D9",reg?[]:[5,4]);
+    curve(noReg,"#C81C6E",reg?[5,4]:[]);
+    // marker on active curve
+    const fn= reg?withReg:noReg; const v=fn(size);
+    cx.strokeStyle="#14171B";cx.setLineDash([3,3]);cx.beginPath();cx.moveTo(X(size),Y(0));cx.lineTo(X(size),Y(v));cx.stroke();cx.setLineDash([]);
+    cx.fillStyle= reg?"#6C30D9":"#C81C6E";cx.beginPath();cx.arc(X(size),Y(v),5,0,7);cx.fill();
+    // legend
+    cx.font="10px 'IBM Plex Mono',monospace";cx.fillStyle="#6C30D9";cx.fillText("— with reg",X(x1)-92,Y(ymax)+14);cx.fillStyle="#C81C6E";cx.fillText("— no reg",X(x1)-92,Y(ymax)+28);
+    $("#capTrain").textContent=fmt(v,3);
+    const real = reg? true : (size<1);
+    const el=$("#capReal");
+    el.textContent= real? "yes ✓" : "no — identity trap";
+    el.parentElement.classList.remove("good","bad"); el.parentElement.classList.add(real?"good":"bad");
+    $("#capMsg").textContent = reg
+      ? "With a penalty on the code, error falls then settles at a positive floor — the network keeps learning real structure even when the code is overcomplete (past 1×)."
+      : (size<1 ? "Undercomplete and unregularized: the bottleneck alone forces genuine compression — a useful code."
+                : "Overcomplete and unregularized: training error collapses toward zero, but the network just copies the input (the identity trap) — the code is useless.");
+  }
+  $("#capSize").addEventListener("input",R); R();
+})();
+
+/* ================= ST05 stochastic sampling ================= */
+(function(){
+  const cv=$("#stoCv"),cx=cv.getContext("2d"),W=cv.width,H=cv.height;
+  let seed=11;
+  const cL=[118,H/2], cR=[330,H/2], sc=42;
+  function R(){
+    const sig=(+$("#stoSig").value)*0.01; $("#stoSigo").textContent=fmt(sig,2);
+    cx.clearRect(0,0,W,H);cx.fillStyle="#fff";cx.fillRect(0,0,W,H);
+    cx.strokeStyle="#e3e5df";cx.beginPath();cx.moveTo(W/2,20);cx.lineTo(W/2,H-20);cx.stroke();
+    cx.fillStyle="#4B515A";cx.font="10px 'IBM Plex Mono',monospace";
+    cx.fillText("code space  p(h|x)",30,28); cx.fillText("reconstructions",258,28);
+    const rng=mulberry32(seed); const K=26; const samples=[];
+    for(let i=0;i<K;i++){samples.push([gauss(rng)*sig,gauss(rng)*sig]);}
+    // mean markers
+    cx.fillStyle="#C81C6E";cx.beginPath();cx.arc(cL[0],cL[1],4,0,7);cx.fill();
+    cx.fillStyle="#14171B";cx.font="9px 'IBM Plex Mono',monospace";cx.fillText("μ",cL[0]+6,cL[1]-6);
+    cx.fillStyle="#0F7C87";cx.beginPath();cx.arc(cR[0],cR[1],4,0,7);cx.fill();cx.fillText("x&#770;",cR[0]+6,cR[1]-6);
+    // decode: linear-ish map with a slight shear so spread is visible
+    samples.forEach(s=>{
+      const hx=cL[0]+s[0]*sc, hy=cL[1]-s[1]*sc;
+      const dx=cR[0]+(s[0]*1.0+s[1]*0.35)*sc*1.05, dy=cR[1]-(s[1]*1.0-s[0]*0.25)*sc*1.05;
+      cx.strokeStyle="rgba(20,23,27,.06)";cx.beginPath();cx.moveTo(hx,hy);cx.lineTo(dx,dy);cx.stroke();
+      cx.fillStyle="#6C30D9";cx.beginPath();cx.arc(hx,hy,3,0,7);cx.fill();
+      cx.fillStyle="#0F7C87";cx.globalAlpha=.8;cx.beginPath();cx.arc(dx,dy,3,0,7);cx.fill();cx.globalAlpha=1;
+    });
+    $("#stoSpread").textContent=fmt(sig,2);
+    const el=$("#stoBeh");
+    if(sig<0.06){el.textContent="≈ deterministic";el.parentElement.classList.remove("bad");el.parentElement.classList.add("good");}
+    else{el.textContent="generative spread";el.parentElement.classList.remove("bad");el.parentElement.classList.add("good");}
+    $("#stoMsg").textContent = sig<0.06
+      ? "σ ≈ 0: the code collapses to a point, so every pass reconstructs the same x̂ — an ordinary deterministic autoencoder."
+      : "Each dot is a sampled code and its decoding. Raising σ fills the code space with plausible codes; sampling and decoding them yields fresh, varied outputs — the generative idea behind the VAE.";
+  }
+  $("#stoSig").addEventListener("input",R);
+  $("#stoResample").addEventListener("click",()=>{seed=(seed*1103515245+12345)&0x7fffffff;R();});
+  R();
+})();
+
+/* ================= ST06 application cards ================= */
+(function(){
+  const apps=[
+    {t:"Dimensionality reduction",tag:"uses the code",p:"Compress high-dimensional data into a few code numbers.",f:"A nonlinear alternative to PCA — great for visualization, storage, and as features for a downstream model."},
+    {t:"Semantic hashing / retrieval",tag:"uses the code",p:"Map items to short binary codes so similar items share nearby codes.",f:"Nearest-neighbour search becomes a fast lookup in code space — the basis of large-scale similarity search."},
+    {t:"Denoising & restoration",tag:"uses reconstruction",p:"Recover clean signals from corrupted inputs.",f:"Image/audio cleanup and super-resolution; the same noise→clean objective seeds diffusion models."},
+    {t:"Anomaly detection",tag:"uses reconstruction",p:"Train on normal data; flag whatever reconstructs poorly.",f:"High reconstruction error marks out-of-distribution points — fraud, defects, intrusions — with no anomaly labels."},
+    {t:"Representation learning",tag:"uses the code",p:"Learn useful features from unlabeled data.",f:"Pretrain an encoder, then fine-tune a small model on top — powerful when labels are scarce."},
+    {t:"Sequence-to-sequence",tag:"encoder–decoder",p:"Encode one sequence, decode another.",f:"Neural machine translation, summarization, captioning and speech recognition — the shape that grew into the Transformer."}
+  ];
+  $("#aeApps").innerHTML=apps.map(a=>
+    '<div class="card"><div class="tag">'+a.tag+'</div><h4>'+a.t+'</h4><p>'+a.p+'</p><div class="fix">'+a.f+'</div></div>').join("");
+  $$("#aeApps .card").forEach(c=>c.addEventListener("click",()=>c.classList.toggle("open")));
+})();
+
+/* ================= ST06 anomaly lab ================= */
+(function(){
+  const cv=$("#anCv"),cx=cv.getContext("2d"),W=cv.width,H=cv.height;
+  const ox=W/2, oy=H/2, sc=64, R0=1.55;
+  const X=x=>ox+x*sc, Y=y=>oy-y*sc;
+  const rng=mulberry32(21);
+  const test=[];
+  for(let i=0;i<40;i++){const a=rng()*Math.PI*2, r=R0+gauss(rng)*0.10; test.push([r*Math.cos(a),r*Math.sin(a)]);}
+  for(let i=0;i<16;i++){test.push([(rng()*2-1)*2.2,(rng()*2-1)*2.2]);}
+  function err(p){return Math.abs(Math.hypot(p[0],p[1])-R0);} // recon error ~ distance to manifold
+  function R(){
+    const thr=(+$("#anThr").value)*0.01; $("#anThro").textContent=fmt(thr,2);
+    cx.clearRect(0,0,W,H);cx.fillStyle="#fff";cx.fillRect(0,0,W,H);
+    cx.strokeStyle="#e3e5df";cx.beginPath();cx.moveTo(X(-2.4),Y(0));cx.lineTo(X(2.4),Y(0));cx.moveTo(X(0),Y(-2.2));cx.lineTo(X(0),Y(2.2));cx.stroke();
+    // manifold ring
+    cx.strokeStyle="#0F7C87";cx.globalAlpha=.5;cx.lineWidth=2;cx.beginPath();cx.arc(X(0),Y(0),R0*sc,0,7);cx.stroke();cx.globalAlpha=1;
+    cx.fillStyle="#4B515A";cx.font="10px 'IBM Plex Mono',monospace";cx.fillText("normal-data manifold",X(0)-56,Y(0)-R0*sc-8);
+    let nNorm=0,nAnom=0;
+    test.forEach(p=>{const e=err(p), anom=e>thr;
+      if(anom)nAnom++;else nNorm++;
+      cx.fillStyle= anom?"#C81C6E":"#0F7C87";
+      cx.beginPath();cx.arc(X(p[0]),Y(p[1]),anom?4.6:3.6,0,7);cx.fill();
+      if(anom){cx.strokeStyle="#C81C6E";cx.lineWidth=1.4;cx.beginPath();cx.arc(X(p[0]),Y(p[1]),7.5,0,7);cx.stroke();}
+    });
+    $("#anNorm").textContent=nNorm; $("#anAnom").textContent=nAnom;
+  }
+  $("#anThr").addEventListener("input",R); R();
+})();
+
+/* ================= quiz ================= */
+const qs=[
+ {q:"An autoencoder is trained to…",o:["Classify its input","Reconstruct (copy) its input through a constraint","Predict the next token","Cluster the data"],a:1,e:"It maps x → h = f(x) → x̂ = g(h) and minimizes a reconstruction loss; the constraint is what makes the learned code useful."},
+ {q:"After training, the part of an autoencoder we usually keep and reuse is the…",o:["Reconstruction x̂","Encoder / the code h = f(x)","Loss function","Decoder only"],a:1,e:"The code is the prize — a learned feature representation. The decoder is often discarded once training is done."},
+ {q:"An 'undercomplete' autoencoder is one whose…",o:["Code is larger than the input","Code is smaller than the input (a bottleneck)","Decoder is linear","Loss is cross-entropy"],a:1,e:"Undercomplete means code dim < input dim, which prevents trivial copying and forces the network to compress."},
+ {q:"A linear undercomplete autoencoder with squared-error loss learns the same subspace as…",o:["k-means","PCA","a decision tree","logistic regression"],a:1,e:"It spans the principal-component subspace — the directions of greatest variance — just like PCA."},
+ {q:"Why can a bottleneck alone fail to give a useful code?",o:["Bottlenecks are always too wide","With powerful enough encoder/decoder, even a small code can learn to copy without useful structure","It removes the decoder","It makes training unstable"],a:1,e:"Given enough capacity, the network can map each input to a code and back perfectly without learning meaningful features — hence regularized autoencoders."},
+ {q:"A denoising autoencoder is trained to…",o:["Add noise to clean inputs","Reconstruct the clean input from a corrupted copy","Maximize the code norm","Copy the input exactly"],a:1,e:"It minimizes L(x, g(f(x̃))): recovering clean x from corrupted x̃ forces it to learn the data's true structure, not the identity."},
+ {q:"A sparse autoencoder adds a penalty that makes the code…",o:["Larger in norm","Have only a few active units at a time","Exactly equal to the input","Deterministic"],a:1,e:"A sparsity penalty Ω(h) keeps most units near zero, so each active unit specializes in a distinct feature."},
+ {q:"A contractive autoencoder penalizes…",o:["The reconstruction error","The sensitivity of the code to input changes (encoder Jacobian norm)","The decoder depth","The batch size"],a:1,e:"The λ‖∂f/∂x‖² term makes the code insensitive to small input perturbations, so it varies only along the data manifold."},
+ {q:"Compared with width, depth in an autoencoder…",o:["Is always worse","Buys representational power more efficiently (fewer units for the same power)","Removes the need for a code","Prevents any learning"],a:1,e:"Deep stacks compose simple transforms into rich ones, needing far fewer units and often less data than a shallow wide net."},
+ {q:"In a stochastic autoencoder, the encoder outputs…",o:["A single code vector","A distribution p(h|x) over codes","The reconstruction directly","The loss"],a:1,e:"Both encoder p(h|x) and decoder p(x|h) are distributions; training minimizes negative log-likelihood — the setup that leads to the VAE."},
+ {q:"The main benefit of making the encoder/decoder stochastic is…",o:["Faster training","A smooth, samplable latent space that enables generation (e.g. VAEs)","Smaller models","No need for data"],a:1,e:"Noise fills in the code space so nearby codes decode similarly and random codes decode to plausible new data — the generative payoff."},
+ {q:"How does an autoencoder detect anomalies without anomaly labels?",o:["By clustering the codes","By flagging points with high reconstruction error after training only on normal data","By counting parameters","By maximizing the code norm"],a:1,e:"Trained on normal data, it reconstructs normal points well and unusual points poorly; a threshold on reconstruction error flags anomalies."}
+];
+let score=0,answered=new Set();
+function quizRender(){
+  $("#quiz").innerHTML=qs.map((q,i)=>
+    '<div class="q" data-i="'+i+'"><p class="stem">'+(i+1)+'. '+q.q+'</p>'+
+    q.o.map((o,j)=>'<button class="opt" data-j="'+j+'">'+o+'</button>').join("")+
+    '<div class="exp">'+q.e+'</div></div>').join("");
+  $("#score").textContent=score+" / "+qs.length;
+  $$("#quiz .q").forEach(qel=>{
+    const i=+qel.dataset.i;
+    $$(".opt",qel).forEach(b=>b.addEventListener("click",()=>{
+      if(answered.has(i))return; answered.add(i);
+      const j=+b.dataset.j;
+      if(j===qs[i].a){b.classList.add("right");score++;}
+      else{b.classList.add("wrong");$$(".opt",qel)[qs[i].a].classList.add("right");}
+      $(".exp",qel).classList.add("show");
+      $("#score").textContent=score+" / "+qs.length;
+    }));
+  });
+}
+$("#qReset").addEventListener("click",()=>{score=0;answered=new Set();quizRender();annotate($("main"));});
+quizRender();
+
+/* ================= glossary + abbr ================= */
+const ABBR={
+ "PCA":"Principal Component Analysis — projects data onto directions of greatest variance",
+ "VAE":"Variational Autoencoder — a stochastic autoencoder with a sampled Gaussian code and a KL prior term",
+ "DAE":"Denoising Autoencoder — reconstructs clean input from a corrupted copy",
+ "CAE":"Contractive Autoencoder — penalizes the encoder's Jacobian to make the code insensitive to input jitter",
+ "MSE":"Mean Squared Error — the squared reconstruction loss for real-valued inputs",
+ "KL":"Kullback–Leibler divergence — measures how far one distribution is from another; the VAE's prior term",
+ "RBM":"Restricted Boltzmann Machine — an energy model once used to pretrain autoencoder layers",
+ "SGD":"Stochastic Gradient Descent — the optimizer used to train the reconstruction loss",
+ "seq2seq":"Sequence-to-sequence — an encoder–decoder that maps an input sequence to an output sequence",
+ "manifold":"Manifold — the low-dimensional surface within input space on which real data concentrates",
+ "code":"Code — the internal representation h = f(x) produced by the encoder (also 'latent')",
+ "latent":"Latent variable — an unobserved code the model infers, e.g. the autoencoder's h",
+ "encoder":"Encoder f — maps input x to the code h",
+ "decoder":"Decoder g — maps the code h back to a reconstruction x̂",
+ "overcomplete":"Overcomplete — a code larger than the input; needs regularization to stay useful",
+ "undercomplete":"Undercomplete — a code smaller than the input; the bottleneck forces compression",
+ "Jacobian":"Jacobian — the matrix of partial derivatives ∂f/∂x; its norm is penalized by a contractive autoencoder",
+ "reparameterization":"Reparameterization trick — writes a sampled code as mean + σ·noise so gradients flow through sampling"
+};
+const aKeys=Object.keys(ABBR).sort((a,b)=>b.length-a.length);
+const aEsc=s=>s.replace(/[.*+?^${}()|[\]\\\-]/g,"\\$&");
+const aPat="(?:^|(?<=[^A-Za-z0-9]))("+aKeys.map(aEsc).join("|")+")(?![A-Za-z0-9])";
+let rxG,rxT;
+try{ rxG=new RegExp(aPat,"g"); rxT=new RegExp(aPat); }
+catch(e){ rxG=new RegExp("\\b("+aKeys.map(aEsc).join("|")+")\\b","g"); rxT=new RegExp("\\b("+aKeys.map(aEsc).join("|")+")\\b"); }
+function annotate(root){
+  if(!root) return;
+  const bad={SCRIPT:1,STYLE:1,ABBR:1,BUTTON:1,INPUT:1,TEXTAREA:1,H1:1,H2:1,TITLE:1,PRE:1,CANVAS:1};
+  const nodes=[], w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null);
+  while(w.nextNode()){
+    const n=w.currentNode;
+    if(!n.nodeValue||!rxT.test(n.nodeValue)) continue;
+    let p=n.parentNode, ok=true;
+    while(p&&p!==root.parentNode){
+      if(p.nodeType===1){
+        if(p.namespaceURI==="http://www.w3.org/2000/svg"||bad[p.tagName]){ok=false;break;}
+        if(p.classList&&p.classList.contains("no-abbr")){ok=false;break;}
+      }
+      p=p.parentNode;
+    }
+    if(ok) nodes.push(n);
+  }
+  nodes.forEach(n=>{
+    const s=n.nodeValue, frag=document.createDocumentFragment();
+    let last=0,m; rxG.lastIndex=0;
+    while((m=rxG.exec(s))!==null){
+      const term=m[1], at=m.index+m[0].length-term.length;
+      if(at>last) frag.appendChild(document.createTextNode(s.slice(last,at)));
+      const a=document.createElement("abbr");
+      a.title=ABBR[term]; a.textContent=term; frag.appendChild(a);
+      last=at+term.length;
+      if(rxG.lastIndex===m.index) rxG.lastIndex++;
+    }
+    if(last<s.length) frag.appendChild(document.createTextNode(s.slice(last)));
+    if(frag.childNodes.length) n.parentNode.replaceChild(frag,n);
+  });
+}
+const pop=document.createElement("div"); pop.className="abbr-pop"; document.body.appendChild(pop);
+let popT;
+document.addEventListener("click",e=>{
+  const t=e.target, a=(t&&t.closest)?t.closest("abbr[title]"):null;
+  if(a){ pop.textContent=a.textContent+" · "+a.title; pop.classList.add("on");
+    clearTimeout(popT); popT=setTimeout(()=>pop.classList.remove("on"),4500); }
+  setTimeout(()=>annotate($("main")),40);
+});
+(function glossary(){
+  const gl=$("#gloss");
+  gl.innerHTML=Object.keys(ABBR).sort((a,b)=>a.toLowerCase().localeCompare(b.toLowerCase()))
+    .map(k=>"<div data-k=\""+(k+" "+ABBR[k]).toLowerCase().replace(/"/g,"")+"\"><b>"+k+"</b> — "+ABBR[k]+"</div>").join("");
+  $("#glossQ").addEventListener("input",e=>{
+    const q=e.target.value.trim().toLowerCase();
+    $$("#gloss div").forEach(d=>{ d.style.display=(!q||d.dataset.k.indexOf(q)>-1)?"":"none"; });
+  });
+})();
+annotate($("main"));
+})();
+</script>
+</body>
+</html>
