@@ -1,0 +1,1599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 9 · Convolutional Networks — Interactive Playground · Convolution, Pooling, Priors, Variants, Efficient Algorithms, Normalization & ImageNet</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700;800&family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root{
+  --paper:#E6E9E3;       /* drafting / graph paper */
+  --panel:#F7F8F3;       /* vellum panel */
+  --ink:#14171B;
+  --ink2:#4B515A;
+  --pri:#6C30D9;         /* violet — regularization / L2 / the penalty */
+  --acc:#C81C6E;         /* rose  — L1 / sparsity */
+  --sec:#0F7C87;         /* teal  — data term / loss / w* */
+  --warn:#B27412;        /* amber — caution / notes */
+  --rule:rgba(20,23,27,.16);
+  --rule-2:rgba(20,23,27,.34);
+  --disp:'Saira Condensed','Arial Narrow',sans-serif;
+  --body:'Spectral',Georgia,serif;
+  --mono:'IBM Plex Mono',ui-monospace,Consolas,monospace;
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:96px}
+body{
+  margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);
+  font-size:16px;line-height:1.62;
+  background-image:
+    linear-gradient(rgba(20,23,27,.045) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(20,23,27,.045) 1px,transparent 1px);
+  background-size:34px 34px;
+}
+h1,h2,h3,h4{font-family:var(--disp);text-transform:uppercase;letter-spacing:.045em;line-height:1.05;margin:0}
+p{margin:0 0 .85em}
+a{color:var(--sec)}
+:focus-visible{outline:2.5px solid var(--pri);outline-offset:3px}
+
+/* ---------- top bar ---------- */
+.hud{position:sticky;top:0;z-index:40;background:rgba(230,233,227,.93);backdrop-filter:blur(7px);
+  border-bottom:1.5px solid var(--rule-2)}
+.hud-in{max-width:1280px;margin:0 auto;padding:9px 20px;display:flex;align-items:center;gap:18px}
+.hud-id{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink2)}
+.hud-id b{color:var(--pri);font-weight:600}
+.hud-title{font-family:var(--disp);font-weight:800;font-size:17px;letter-spacing:.06em;margin-right:auto}
+.hud-prog{display:flex;align-items:center;gap:9px;font-family:var(--mono);font-size:11px;color:var(--ink2)}
+.prog-track{width:130px;height:5px;background:rgba(20,23,27,.14);border-radius:0}
+.prog-fill{height:100%;width:0;background:var(--pri);transition:width .25s}
+
+/* ---------- shell ---------- */
+.shell{max-width:1080px;margin:0 auto;padding:0 20px 90px;display:block}
+.rail{position:fixed;top:0;left:0;bottom:0;width:280px;max-width:82vw;background:var(--panel);border-right:1.5px solid var(--rule-2);
+  padding:20px 22px 30px;z-index:70;overflow-y:auto;transform:translateX(-104%);transition:transform .28s ease;box-shadow:6px 0 22px rgba(20,23,27,.14)}
+.rail.open{transform:none}
+.rail-bg{position:fixed;inset:0;background:rgba(20,23,27,.38);z-index:65;opacity:0;pointer-events:none;transition:opacity .25s}
+.rail-bg.on{opacity:1;pointer-events:auto}
+.rail-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--rule-2)}
+.rail-h{font-family:var(--mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink2)}
+.rail-x{border:1px solid var(--rule-2);background:var(--paper);color:var(--ink);font-family:var(--mono);font-size:13px;line-height:1;
+  width:28px;height:28px;cursor:pointer}
+.rail-x:hover{background:var(--pri);color:var(--panel);border-color:var(--pri)}
+.ham{flex:none;display:flex;flex-direction:column;justify-content:center;gap:5px;width:40px;height:34px;padding:0 9px;
+  border:1px solid var(--rule-2);background:var(--panel);cursor:pointer}
+.ham span{display:block;height:2px;background:var(--ink);transition:transform .25s,opacity .2s}
+.ham:hover span{background:var(--pri)}
+.ham.open span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+.ham.open span:nth-child(2){opacity:0}
+.ham.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+.rail a{display:flex;gap:10px;align-items:baseline;padding:6px 0;text-decoration:none;color:var(--ink2);font-family:var(--disp);
+  font-size:14.5px;letter-spacing:.05em;text-transform:uppercase;border-bottom:1px dotted transparent}
+.rail a span{font-family:var(--mono);font-size:10px;color:var(--pri);min-width:20px}
+.rail a:hover{color:var(--ink)}
+.rail a.on{color:var(--ink);font-weight:700}
+.rail a.on span{background:var(--pri);color:var(--panel);padding:1px 3px}
+
+/* ---------- hero ---------- */
+.hero{padding:34px 0 8px}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--pri)}
+.hero h1{font-size:clamp(38px,6.4vw,74px);font-weight:800;margin:10px 0 6px;letter-spacing:.02em}
+.hero h1 em{font-style:normal;color:var(--pri)}
+.hero-sub{max-width:60ch;color:var(--ink2);font-size:17px}
+.chartbox{margin-top:22px;border:1.5px solid var(--rule-2);background:var(--panel);position:relative;overflow:hidden}
+.chartbox svg{display:block;width:100%;height:auto}
+.chart-cap{display:flex;flex-wrap:wrap;gap:6px 20px;padding:9px 14px;border-top:1px solid var(--rule);font-family:var(--mono);
+  font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2)}
+.wp{cursor:pointer}
+.wp circle{transition:r .18s,fill .18s}
+.wp:hover circle.hit{r:15}
+.wp:hover text{fill:var(--pri)}
+
+/* ---------- sections ---------- */
+.leg{padding:52px 0 8px;border-top:1.5px solid var(--rule-2);margin-top:44px}
+.leg-head{display:flex;gap:14px;align-items:flex-start;margin-bottom:20px}
+.leg-no{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--panel);background:var(--ink);padding:3px 6px;margin-top:5px;white-space:nowrap}
+.leg h2{font-size:clamp(25px,3.6vw,38px);font-weight:800}
+.leg-kicker{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--pri);margin-bottom:4px}
+.lede{font-size:17.5px;max-width:68ch}
+
+.panel{background:var(--panel);border:1.5px solid var(--rule-2);padding:20px 22px;margin:20px 0}
+.panel-t{font-family:var(--disp);font-weight:700;font-size:16px;letter-spacing:.09em;text-transform:uppercase;
+  display:flex;align-items:center;gap:9px;margin-bottom:14px;padding-bottom:9px;border-bottom:1px solid var(--rule)}
+.panel-t::before{content:"";width:9px;height:9px;background:var(--pri);flex:none;transform:rotate(45deg)}
+.panel-t small{margin-left:auto;font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--ink2);text-transform:uppercase;font-weight:400}
+
+.two{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.three{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+
+/* key list */
+ul.kl{list-style:none;padding:0;margin:0}
+ul.kl li{padding:7px 0 7px 20px;border-bottom:1px dotted var(--rule-2);position:relative}
+ul.kl li:last-child{border-bottom:0}
+ul.kl li::before{content:"▸";position:absolute;left:0;color:var(--pri);font-size:12px;top:8px}
+ul.kl b{font-family:var(--disp);font-size:16px;letter-spacing:.04em;text-transform:uppercase}
+.mono{font-family:var(--mono);font-size:12.5px}
+.def{border-left:3px solid var(--pri);padding:2px 0 2px 14px;margin:14px 0;font-size:17px}
+.note{background:rgba(178,116,18,.1);border:1px solid rgba(178,116,18,.45);padding:11px 14px;font-size:14.5px;margin:14px 0}
+.note b{font-family:var(--disp);letter-spacing:.06em;text-transform:uppercase;color:var(--warn)}
+
+/* plain-words (grade-6) explainer */
+.eli{background:rgba(15,124,135,.06);border:1.5px solid rgba(15,124,135,.38);border-left:5px solid var(--sec);
+  padding:14px 18px 13px;margin:18px 0}
+.eli-h{display:flex;align-items:center;gap:9px;font-family:var(--disp);font-weight:700;font-size:14px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--sec);margin-bottom:9px}
+.eli-h::before{content:"";width:11px;height:11px;border-radius:50%;background:var(--sec);box-shadow:0 0 0 3px rgba(15,124,135,.22);flex:none}
+.eli-h small{margin-left:auto;font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;color:var(--ink2);font-weight:400}
+.eli p{font-size:16px;line-height:1.66;margin:0 0 .6em}
+.eli p:last-child{margin-bottom:0}
+.eli b{color:var(--ink);font-weight:600}
+.eli .pic{font-style:italic;color:var(--sec)}
+
+/* display equation */
+.eqn{font-family:var(--mono);font-size:15px;line-height:1.9;background:rgba(108,48,217,.055);border-left:4px solid var(--pri);
+  padding:12px 16px;margin:14px 0;overflow-x:auto;letter-spacing:.01em}
+.eqn .lbl{color:var(--ink2);font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+.eqn b{color:var(--pri)} .eqn .t{color:var(--sec)}
+sub,sup{font-size:.72em;line-height:0}
+
+/* table */
+table.t{width:100%;border-collapse:collapse;font-size:14px}
+table.t th{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;text-align:left;
+  padding:8px 9px;border-bottom:1.5px solid var(--ink);color:var(--ink2)}
+table.t td{padding:8px 9px;border-bottom:1px solid var(--rule);vertical-align:top}
+table.t tr:hover td{background:rgba(108,48,217,.06)}
+table.t td.hl{color:var(--pri);font-weight:600}
+
+/* controls */
+.ctl{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+button.chip{font-family:var(--disp);font-size:14px;letter-spacing:.06em;text-transform:uppercase;padding:6px 13px;
+  background:transparent;border:1.5px solid var(--rule-2);color:var(--ink2);cursor:pointer}
+button.chip:hover{border-color:var(--ink);color:var(--ink)}
+button.chip.on{background:var(--ink);border-color:var(--ink);color:var(--panel)}
+button.chip.mag.on{background:var(--pri);border-color:var(--pri)}
+button.chip.rose.on{background:var(--acc);border-color:var(--acc)}
+.slider{display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:center;margin:12px 0}
+.slider label{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink2);grid-column:1/-1}
+.slider input[type=range]{width:100%;accent-color:var(--pri)}
+.slider output{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--pri);min-width:92px;text-align:right}
+input[type=number]{font-family:var(--mono);font-size:13px;padding:5px 7px;border:1.5px solid var(--rule-2);background:#fff;width:100%}
+.field{margin-bottom:9px}
+.field label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink2);margin-bottom:3px}
+
+/* readouts */
+.reads{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:1.5px;background:var(--rule-2);border:1.5px solid var(--rule-2)}
+.read{background:var(--panel);padding:10px 12px}
+.read i{font-style:normal;display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2)}
+.read b{display:block;font-family:var(--disp);font-size:26px;font-weight:700;letter-spacing:.02em;line-height:1.15}
+.read b s{text-decoration:none;font-size:13px;color:var(--ink2);font-weight:500}
+.read.warn b{color:var(--warn)} .read.bad b{color:var(--acc)} .read.good b{color:var(--sec)} .read.pri b{color:var(--pri)}
+
+/* detail block */
+.detail{margin-top:14px;border-top:1px solid var(--rule);padding-top:12px;min-height:104px}
+.detail h4{font-size:19px;margin-bottom:3px}
+.detail .spec{font-family:var(--mono);font-size:11.5px;color:var(--pri);letter-spacing:.06em;margin-bottom:7px}
+
+/* cards */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:12px}
+.card{border:1.5px solid var(--rule-2);background:var(--panel);padding:14px;cursor:pointer;transition:transform .16s}
+.card:hover{transform:translateY(-3px);border-color:var(--pri)}
+.card h4{font-size:16px;margin-bottom:5px}
+.card .tag{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--pri)}
+.card p{font-size:14px;margin:6px 0 0;color:var(--ink2)}
+.card .fix{display:none;margin-top:9px;padding-top:8px;border-top:1px dotted var(--rule-2);font-size:13.5px}
+.card.open .fix{display:block}
+.card.open{border-color:var(--pri)}
+
+/* quiz */
+.q{border-bottom:1px solid var(--rule);padding:14px 0}
+.q p.stem{font-weight:600;margin-bottom:8px}
+.opt{display:block;width:100%;text-align:left;font-family:var(--body);font-size:14.5px;padding:6px 11px;margin-bottom:5px;
+  background:#fff;border:1.5px solid var(--rule);cursor:pointer;color:var(--ink)}
+.opt:hover{border-color:var(--ink2)}
+.opt.right{border-color:var(--sec);background:rgba(15,124,135,.11);font-weight:600}
+.opt.wrong{border-color:var(--acc);background:rgba(200,28,110,.09);text-decoration:line-through}
+.exp{display:none;font-size:13.5px;color:var(--ink2);border-left:3px solid var(--sec);padding-left:11px;margin-top:7px}
+.exp.show{display:block}
+
+/* misc */
+.stat-row{display:flex;flex-wrap:wrap;gap:10px;font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2)}
+.foot{margin-top:52px;border-top:1.5px solid var(--rule-2);padding-top:16px;font-family:var(--mono);font-size:11px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink2);display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between}
+.badge{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  border:1px solid var(--rule-2);padding:1px 6px;color:var(--ink2)}
+
+/* figures */
+.fig{margin:20px 0;border:1.5px solid var(--rule-2);background:var(--panel);padding:16px 18px 12px}
+.fig svg{display:block;width:100%;height:auto}
+.fig figcaption{margin-top:11px;padding-top:9px;border-top:1px solid var(--rule);font-family:var(--mono);
+  font-size:11px;letter-spacing:.05em;color:var(--ink2);line-height:1.55}
+.fig figcaption b{color:var(--pri);letter-spacing:.14em;margin-right:6px}
+
+/* abbreviations */
+abbr[title]{border-bottom:1px dotted var(--pri);text-decoration:none;cursor:help}
+abbr[title]:hover{background:rgba(108,48,217,.1)}
+.abbr-pop{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--ink);color:var(--panel);
+  font-family:var(--mono);font-size:12.5px;line-height:1.5;padding:9px 15px;z-index:60;max-width:min(92vw,540px);
+  opacity:0;pointer-events:none;transition:opacity .18s;border-left:4px solid var(--pri)}
+.abbr-pop.on{opacity:1}
+
+/* key takeaways */
+.tk{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1.5px;background:var(--rule-2);border:1.5px solid var(--rule-2)}
+.tk-item{background:var(--panel);padding:17px 18px;display:flex;gap:14px;align-items:flex-start}
+.tk-item i{font-style:normal;font-family:var(--disp);font-size:30px;font-weight:800;color:var(--pri);line-height:.9;min-width:36px}
+.tk-item h4{font-size:16.5px;margin-bottom:5px}
+.tk-item p{font-size:14.5px;margin:0;color:var(--ink2);line-height:1.55}
+.headline{border:1.5px solid var(--ink);background:var(--ink);color:var(--paper);padding:20px 22px;margin:20px 0}
+.headline h3{font-size:clamp(19px,2.6vw,26px);color:var(--paper);margin-bottom:8px}
+.headline p{margin:0;font-size:16px;opacity:.92}
+.headline b{color:#C79BF0}
+
+/* glossary */
+.gloss{column-count:2;column-gap:28px}
+.gloss div{break-inside:avoid;padding:5px 0;border-bottom:1px dotted var(--rule);font-size:14px;line-height:1.45}
+.gloss b{font-family:var(--mono);font-size:12px;color:var(--pri);letter-spacing:.03em}
+input.search{font-family:var(--mono);font-size:13px;padding:7px 10px;border:1.5px solid var(--rule-2);background:#fff;width:100%;margin-bottom:14px}
+
+/* code */
+pre.code{background:#14171B;color:#E9EDDD;font-family:var(--mono);font-size:12.5px;line-height:1.65;
+  padding:13px 16px;overflow-x:auto;margin:12px 0;border-left:4px solid var(--pri)}
+pre.code .c{color:#8a967f}
+pre.code .k{color:#C79BF0}
+pre.code .s{color:#7fc8d2}
+
+/* labs */
+.lab{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0}
+.cv{border:1.5px solid var(--rule-2);background:#fff}
+.cv canvas{display:block;width:100%;height:auto}
+.cv-cap{font-family:var(--mono);font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink2);
+  padding:6px 9px;border-top:1px solid var(--rule);background:var(--panel)}
+.bar-row{display:grid;grid-template-columns:130px 1fr 92px;gap:10px;align-items:center;font-family:var(--mono);
+  font-size:11px;letter-spacing:.04em;margin:6px 0}
+.bar-row .tr{background:rgba(20,23,27,.1);height:13px;position:relative}
+.bar-row .fl{position:absolute;left:0;top:0;bottom:0;background:var(--pri);transition:width .18s}
+.bar-row .fl.rose{background:var(--acc)} .bar-row .fl.sec{background:var(--sec)} .bar-row .fl.dim{background:var(--rule-2)}
+.bar-row b{text-align:right;font-weight:600}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink2);margin:8px 0}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:16px;height:3px;display:inline-block}
+.contour-wrap{border:1.5px solid var(--rule-2);background:#fff}
+.contour-wrap svg{display:block;width:100%;height:auto}
+
+@media(max-width:960px){
+  .hud-title{font-size:14px}
+  .two,.three,.lab{grid-template-columns:1fr}
+  .gloss{column-count:1}
+}
+@media(prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+  html{scroll-behavior:auto}
+}
+
+/* in-practice use-case block */
+.uc{background:rgba(108,48,217,.05);border:1.5px solid rgba(108,48,217,.32);border-left:5px solid var(--pri);padding:14px 18px 13px;margin:18px 0}
+.uc-h{display:flex;align-items:center;gap:9px;font-family:var(--disp);font-weight:700;font-size:14px;letter-spacing:.1em;text-transform:uppercase;color:var(--pri);margin-bottom:9px}
+.uc-h::before{content:"";width:11px;height:11px;background:var(--pri);transform:rotate(45deg);flex:none}
+.uc-h .tag{margin-left:auto;font-family:var(--mono);font-size:9px;letter-spacing:.12em;color:var(--pri);font-weight:400;border:1px solid rgba(108,48,217,.4);padding:2px 7px;text-transform:uppercase}
+.uc p{font-size:15px;line-height:1.6;margin:0 0 .55em}
+.uc p:last-child{margin-bottom:0}
+.uc b{color:var(--ink);font-weight:600}
+.uc .case{font-family:var(--mono);font-size:11.5px;line-height:1.5;color:var(--ink2);margin-top:9px;padding-top:9px;border-top:1px dashed var(--rule-2)}
+.uc .case b{color:var(--pri)}
+
+/* ===== shared additions for these volumes ===== */
+.netwrap{border:1.5px solid var(--rule-2);background:#fff}
+.netwrap svg{display:block;width:100%;height:auto}
+.pipe{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-family:var(--disp);font-size:13.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink2);margin:10px 0}
+.pipe b{background:#fff;border:1.5px solid var(--rule-2);padding:6px 11px;color:var(--ink)}
+.pipe span{font-family:var(--mono);color:var(--rule-2)}
+.tvbar{display:grid;grid-template-columns:118px 1fr 62px;gap:10px;align-items:center;font-family:var(--mono);font-size:11px;margin:5px 0}
+.tvbar .tr{background:rgba(20,23,27,.08);height:14px;position:relative}
+.tvbar .fl{position:absolute;left:0;top:0;bottom:0;background:var(--sec);transition:width .18s}
+.tvbar .fl.pri{background:var(--pri)} .tvbar .fl.rose{background:var(--acc)} .tvbar .fl.warn{background:var(--warn)}
+.tvbar b{text-align:right}
+.grid-lab{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+@media(max-width:960px){ .grid-lab{grid-template-columns:1fr} }
+.pill{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;border:1px solid var(--rule-2);padding:2px 7px;color:var(--ink2);margin:2px 4px 2px 0}
+.pill.pri{color:var(--pri);border-color:rgba(108,48,217,.5)}
+.pill.sec{color:var(--sec);border-color:rgba(15,124,135,.5)}
+.pill.rose{color:var(--acc);border-color:rgba(200,28,110,.5)}
+.pill.warn{color:var(--warn);border-color:rgba(178,116,18,.5)}
+</style>
+
+</head>
+<body>
+
+<div class="hud">
+  <div class="hud-in">
+    <button class="ham" id="ham" aria-label="Open toolkit menu" aria-expanded="false" aria-controls="rail"><span></span><span></span><span></span></button>
+    <div class="hud-id">CH <b>9</b></div>
+    <div class="hud-title">Convolutional Networks</div>
+    <div class="hud-prog"><span id="progTxt">0%</span><div class="prog-track"><div class="prog-fill" id="progFill"></div></div></div>
+  </div>
+</div>
+
+<div class="shell">
+
+  <nav class="rail no-abbr" id="rail" aria-label="Toolkit menu">
+    <div class="rail-top"><div class="rail-h">Playground / 10 live labs + summary</div><button class="rail-x" id="railX" aria-label="Close menu">&#10005;</button></div>
+    <a href="#l1"><span>01</span>Why convolutional networks?</a>
+    <a href="#l2"><span>02</span>The convolution operation</a>
+    <a href="#l3"><span>03</span>Motivation: local, shared, equivariant</a>
+    <a href="#l4"><span>04</span>Pooling</a>
+    <a href="#l5"><span>05</span>The neuroscientific basis</a>
+    <a href="#l6"><span>06</span>Convolution &amp; pooling as a strong prior</a>
+    <a href="#l7"><span>07</span>Variants of the convolution</a>
+    <a href="#l8"><span>08</span>Structured outputs · data &amp; channels</a>
+    <a href="#l9"><span>09</span>Efficient convolution algorithms</a>
+    <a href="#l10"><span>10</span>Random features &amp; normalization</a>
+    <a href="#l11"><span>11</span>Computer vision &amp; ImageNet</a>
+    <a href="#l12"><span>&Sigma;</span>Revision + takeaways</a>
+  </nav>
+  <div class="rail-bg" id="railBg"></div>
+
+  <main>
+
+  <!-- ================= HERO ================= -->
+  <header class="hero">
+    <div class="eyebrow">Deep learning · Chapter 9 · Interactive convolutional-network playground</div>
+    <h1>Look local,<br>share <em>everywhere</em>.</h1>
+    <p class="hero-sub">A convolutional network is a neural network that assumes its input has grid-like structure — a row of audio samples, a grid of pixels, a stack of video frames — and bakes that assumption straight into its wiring. Instead of connecting every input to every unit, it slides a small <b>filter</b> across the grid, reusing the same handful of weights at every position. Three ideas do all the work: connections are <b>local</b> (each unit looks at a small patch), weights are <b>shared</b> (the same filter runs everywhere), and <b>pooling</b> makes the answer robust to small shifts. Those constraints slash the parameter count, respect the geometry of the data, and gave computer vision its modern era. Every filter, feature map and receptive field below is computed live in your browser.</p>
+
+    <div class="chartbox">
+      <svg viewBox="0 0 960 372" role="img" aria-label="A convolutional network drawn as a funnel: an input image is scanned by a sliding filter, producing stacks of feature maps that shrink in width and height while growing in depth, ending in a class prediction">
+        <rect width="960" height="372" fill="#F7F8F3"/>
+
+        <text x="70" y="96" font-family="IBM Plex Mono,monospace" font-size="10" fill="#4B515A">input · H×W×3</text>
+        <text x="250" y="96" font-family="IBM Plex Mono,monospace" font-size="10" fill="#6C30D9">conv 3×3</text>
+        <text x="392" y="96" font-family="IBM Plex Mono,monospace" font-size="10" fill="#0F7C87">pool</text>
+        <text x="470" y="96" font-family="IBM Plex Mono,monospace" font-size="10" fill="#6C30D9">conv 3×3</text>
+        <text x="600" y="96" font-family="IBM Plex Mono,monospace" font-size="10" fill="#0F7C87">pool</text>
+        <text x="690" y="96" font-family="IBM Plex Mono,monospace" font-size="10" fill="#4B515A">flatten</text>
+        <text x="812" y="96" font-family="IBM Plex Mono,monospace" font-size="10" fill="#C81C6E">class</text>
+
+        <!-- input image (stylized scene) -->
+        <clipPath id="imgClip"><rect x="70" y="112" width="140" height="140" rx="3"/></clipPath>
+        <g clip-path="url(#imgClip)">
+          <rect x="70" y="112" width="140" height="140" fill="#dfe7f2"/>
+          <rect x="70" y="196" width="140" height="56" fill="#cfe6cf"/>
+          <circle cx="176" cy="146" r="16" fill="#f2d98a"/>
+          <path d="M70 214 L118 176 L150 206 L184 172 L210 200 L210 252 L70 252 Z" fill="#9fc39f"/>
+        </g>
+        <rect x="70" y="112" width="140" height="140" rx="3" fill="none" stroke="#c7ccc2" stroke-width="1.2"/>
+        <!-- sliding receptive field -->
+        <path id="rfPath" d="M92 134 L188 134 L188 230 L92 230 Z" fill="none" stroke="none"/>
+        <rect x="-15" y="-15" width="30" height="30" fill="rgba(108,48,217,.12)" stroke="#6C30D9" stroke-width="1.6" stroke-dasharray="4 3">
+          <animateMotion dur="7s" repeatCount="indefinite" rotate="0"><mpath href="#rfPath"/></animateMotion>
+        </rect>
+
+        <!-- conv1 slab (depth) -->
+        <g>
+          <rect x="256" y="128" width="70" height="108" fill="#efe7fb" stroke="#6C30D9" stroke-width="1"/>
+          <rect x="250" y="122" width="70" height="108" fill="#e6d9fa" stroke="#6C30D9" stroke-width="1"/>
+          <rect x="244" y="116" width="70" height="108" fill="#dcc9f7" stroke="#6C30D9" stroke-width="1.2"/>
+        </g>
+        <!-- pool1 slab (shorter) -->
+        <g>
+          <rect x="372" y="146" width="46" height="74" fill="#dceef0" stroke="#0F7C87" stroke-width="1"/>
+          <rect x="366" y="140" width="46" height="74" fill="#cbe7ea" stroke="#0F7C87" stroke-width="1.2"/>
+        </g>
+        <!-- conv2 slab (deeper) -->
+        <g>
+          <rect x="470" y="150" width="42" height="66" fill="#efe7fb" stroke="#6C30D9" stroke-width="1"/>
+          <rect x="464" y="144" width="42" height="66" fill="#e6d9fa" stroke="#6C30D9" stroke-width="1"/>
+          <rect x="458" y="138" width="42" height="66" fill="#dcc9f7" stroke="#6C30D9" stroke-width="1"/>
+          <rect x="452" y="132" width="42" height="66" fill="#d2bbf4" stroke="#6C30D9" stroke-width="1.2"/>
+        </g>
+        <!-- pool2 -->
+        <rect x="560" y="156" width="30" height="46" fill="#cbe7ea" stroke="#0F7C87" stroke-width="1.2"/>
+
+        <!-- flatten column -->
+        <g fill="#8a907f">
+          <circle cx="662" cy="140" r="3.2"/><circle cx="662" cy="156" r="3.2"/><circle cx="662" cy="172" r="3.2"/>
+          <circle cx="662" cy="188" r="3.2"/><circle cx="662" cy="204" r="3.2"/><circle cx="662" cy="220" r="3.2"/>
+        </g>
+
+        <!-- class bars -->
+        <g font-family="IBM Plex Mono,monospace" font-size="11">
+          <rect x="800" y="132" width="112" height="16" rx="2" fill="#f0dbe7"/><rect x="800" y="132" width="108" height="16" rx="2" fill="#C81C6E"/><text x="806" y="144" fill="#fff">cat · 0.98</text>
+          <rect x="800" y="156" width="112" height="16" rx="2" fill="#f0dbe7"/><rect x="800" y="156" width="20" height="16" rx="2" fill="#e0a9c6"/><text x="806" y="168" fill="#7a3a5b">dog · 0.01</text>
+          <rect x="800" y="180" width="112" height="16" rx="2" fill="#f0dbe7"/><rect x="800" y="180" width="10" height="16" rx="2" fill="#e0a9c6"/><text x="806" y="192" fill="#7a3a5b">car · 0.00</text>
+        </g>
+
+        <!-- arrows -->
+        <g stroke="#b9bfb2" stroke-width="1.4" fill="none" marker-end="url(#ar)">
+          <path d="M214 182 L240 178"/><path d="M320 176 L360 176"/><path d="M416 176 L448 172"/><path d="M498 176 L556 178"/><path d="M592 178 L654 180"/><path d="M672 180 L796 168"/>
+        </g>
+        <defs><marker id="ar" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#b9bfb2"/></marker></defs>
+
+        <text x="70" y="300" font-family="IBM Plex Mono,monospace" font-size="10" fill="#6C30D9">local receptive fields + shared weights</text>
+        <text x="70" y="320" font-family="IBM Plex Mono,monospace" font-size="10" fill="#0F7C87">pooling → tolerance to small shifts</text>
+        <text x="70" y="340" font-family="IBM Plex Mono,monospace" font-size="10" fill="#4B515A">width &amp; height shrink · depth (channels) grows</text>
+      </svg>
+      <div class="chart-cap">
+        <span>◆ 10 live labs · drag every control</span>
+        <span>◆ Goodfellow · Deep Learning · Chapter 9</span>
+        <span>◆ nothing pre-rendered — everything runs live</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= 01 WHY ================= -->
+  <section class="leg" id="l1">
+    <div class="leg-head"><div class="leg-no">01</div><div>
+      <div class="leg-kicker">Role · significance · society · §9 intro</div><h2>Why Convolutional Networks?</h2></div></div>
+
+    <p class="lede">Suppose you feed a 256×256 colour photo to an ordinary fully-connected layer. Every one of the ~197,000 input values connects to every hidden unit, so a single modest layer of 1,000 units already carries ~197&nbsp;million weights — and none of them know that two neighbouring pixels are related, or that a cat is still a cat when it moves ten pixels to the right. A <b>convolutional network</b> throws out that wastefulness by exploiting the one thing images, audio and video all share: <b>grid structure with strong local correlation</b>. It wires up small local filters, reuses them across the whole grid, and pools their responses. The result is a model with far fewer parameters, built-in respect for spatial layout, and tolerance to small translations — the combination that finally made vision work.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> imagine you have one small, clear stamp that says "this looks like an edge." Instead of hiring a different inspector for every single spot on a giant photo, you take that <b>one stamp</b> and press it everywhere, sliding it across the whole picture. Wherever the picture matches the stamp, you get a bright mark. That is what a convolutional network does — one small pattern-detector, reused all over the image.</p>
+      <p>Because the same stamp works in every corner, the network needs to learn only a few stamps instead of millions of separate wires. And because an edge looks like an edge whether it's top-left or bottom-right, the network naturally handles a picture even when things move around a little. Fewer things to learn, and it doesn't get confused when the subject shifts — that's the whole trick, and it's why cameras, phones, hospitals and satellites all rely on these networks now.</p>
+    </div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panel-t">What a dense layer gets wrong on images</div>
+        <ul class="kl">
+          <li><b>Parameter explosion — </b>full connectivity ties every pixel to every unit; the weight count grows with image size and blows up memory and data needs.</li>
+          <li><b>No sense of place — </b>a dense layer sees a flat list of numbers; it has no idea which pixels are neighbours, so it must re-learn "nearby matters" from scratch.</li>
+          <li><b>No shift tolerance — </b>move the object a few pixels and every input changes, so a dense layer must learn the object separately at every location.</li>
+          <li><b>Data-hungry — </b>with nothing built in, it needs far more labelled examples to reach the same accuracy.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <div class="panel-t">What convolution builds in <small>The three fixes</small></div>
+        <p style="font-size:14.5px"><b>Sparse (local) connectivity</b> — each unit reads only a small patch, so the wiring is cheap and matches how images actually carry information locally.</p>
+        <p style="font-size:14.5px"><b>Parameter sharing</b> — the same filter runs at every position, so a feature learned once is available everywhere, cutting parameters dramatically.</p>
+        <p style="font-size:14.5px;color:var(--ink2)"><b>Pooling / equivariance</b> — sliding a filter makes the feature map <i>move with</i> the input (equivariance), and pooling then makes the summary <i>ignore</i> small moves (invariance).</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Significance &amp; applicability — where CNNs solve societal problems</div>
+      <div class="tk">
+        <div class="tk-item"><i>◨</i><div><h4>Medical imaging &amp; screening</h4>
+          <p>Detecting tumours in radiology and pathology, grading diabetic retinopathy, triaging chest X-rays — extending scarce specialist expertise to under-served clinics.</p></div></div>
+        <div class="tk-item"><i>❀</i><div><h4>Agriculture &amp; food security</h4>
+          <p>Spotting crop disease from a leaf photo, estimating yield and drought stress from drone and satellite imagery, guiding precise, low-waste farming.</p></div></div>
+        <div class="tk-item"><i>◍</i><div><h4>Climate &amp; environment</h4>
+          <p>Mapping deforestation, floods and glacier retreat from satellite images; counting wildlife in camera-trap photos to support conservation.</p></div></div>
+        <div class="tk-item"><i>⚑</i><div><h4>Disaster response</h4>
+          <p>Rapid building-damage assessment from aerial imagery after earthquakes and storms, so relief can be routed to the worst-hit areas first.</p></div></div>
+        <div class="tk-item"><i>◉</i><div><h4>Accessibility</h4>
+          <p>Describing scenes aloud for blind and low-vision users, recognising sign language, and reading printed text from a phone camera.</p></div></div>
+        <div class="tk-item"><i>⛬</i><div><h4>Safety &amp; infrastructure</h4>
+          <p>Pedestrian and obstacle detection in vehicles, automated defect inspection on production lines, and structural-crack detection on bridges.</p></div></div>
+      </div>
+    </div>
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">Use responsibly</span></div>
+      <p>The same power raises real questions. A model trained mostly on one population's scans may <b>underperform on others</b>; face and behaviour recognition enable <b>surveillance</b>; and a confident wrong answer in medicine or a vehicle can cause harm. Representative data, honest evaluation across groups, human oversight for high-stakes calls, and clear limits on deployment are part of doing this well — not optional extras.</p>
+      <div class="case"><b>The takeaway:</b> CNNs are a genuinely broad tool for societal good, but their benefit depends on <i>who</i> is in the data and <i>how</i> the system is used.</div>
+    </div>
+  </section>
+
+  <!-- ================= 02 CONVOLUTION ================= -->
+  <section class="leg" id="l2">
+    <div class="leg-head"><div class="leg-no">02</div><div>
+      <div class="leg-kicker">The core operation · §9.1</div><h2>The Convolution Operation</h2></div></div>
+
+    <p class="lede">Convolution is a way of blending two functions: you take a small array of weights — the <b>kernel</b> — slide it over the input, and at each position record the weighted sum of the input values it covers. That single number measures how strongly the input near that spot matches the kernel's pattern. Sweep the kernel over the whole grid and you get a <b>feature map</b>: a new image whose bright spots mark where the pattern was found. In machine-learning libraries the kernel is not flipped, so what we actually compute is technically <b>cross-correlation</b>; the distinction rarely matters because the kernel is learned.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> lay a small see-through tile printed with a pattern on top of a photo. At each spot, multiply what's on the tile by what's under it and add it all up — one number saying "how well did the tile match here?" Now slide the tile one step and do it again, across the whole photo. The grid of match-scores you collect is a brand-new picture that lights up wherever the pattern appears.</p>
+      <p>Change the tile's pattern and you detect a different thing: one tile finds vertical edges, another finds blur, another finds bright dots. The network's job is to <b>learn which tiles are worth having</b>.</p>
+    </div>
+
+    <div class="eqn"><span class="lbl">Discrete 2-D convolution (cross-correlation form used in practice)</span><br>
+      S(i,j) = (I ∗ K)(i,j) = <b>Σ<sub>m</sub> Σ<sub>n</sub></b> &nbsp;I(i+m, j+n) · <span class="t">K(m,n)</span> &nbsp;&nbsp;<span class="lbl">kernel K slides over image I → feature map S</span></div>
+
+    <div class="panel">
+      <div class="panel-t">Slide the kernel <small>Pick a filter · step it across the image · watch the feature map build</small></div>
+      <div class="ctl" id="convCtl"></div>
+      <div class="grid-lab">
+        <div class="cv"><canvas id="convCv" width="460" height="330"></canvas><div class="cv-cap">Left: input with the current 3×3 window (violet). Middle: the kernel. Right: the output feature map, filling in as the window sweeps.</div></div>
+        <div>
+          <div class="slider"><div class="field"><label>Window position (row-major)</label><input type="range" id="convPos" min="0" max="99" value="0"></div><output id="convPoso" class="mono">0</output></div>
+          <div class="ctl" style="margin:6px 0 10px"><button class="chip mag" id="convSweep">▶ Auto-sweep</button></div>
+          <div class="reads">
+            <div class="read pri"><i>Kernel</i><b id="convKernel" style="font-size:15px">—</b></div>
+            <div class="read"><i>Output size</i><b id="convOut">—</b></div>
+            <div class="read good"><i>Value at window</i><b id="convVal">—</b></div>
+          </div>
+          <p style="font-size:13px;color:var(--ink2);margin-top:8px" id="convMsg">The value at the window is the sum of input×kernel over the nine covered cells. Edge kernels give big positive or negative values where brightness changes fast; blur kernels average, smoothing everything.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">Kernels are learned</span></div>
+      <p>You don't hand-pick these filters in a real network — training discovers them. Early layers reliably converge on edge- and colour-blob detectors that look a lot like the classic kernels above; deeper layers combine them into textures, parts and objects.</p>
+      <div class="case"><b>Valid vs same:</b> a 3×3 kernel on an <i>n×n</i> image gives an <i>(n−2)×(n−2)</i> "valid" output; padding the border with zeros keeps the output the same size — covered in §07.</div>
+    </div>
+  </section>
+
+  <!-- ================= 03 MOTIVATION ================= -->
+  <section class="leg" id="l3">
+    <div class="leg-head"><div class="leg-no">03</div><div>
+      <div class="leg-kicker">Why it works · §9.2</div><h2>Motivation: Sparse, Shared, Equivariant</h2></div></div>
+
+    <p class="lede">Convolution improves a machine-learning system through three mechanisms working together. <b>Sparse interactions</b>: because the kernel is small, each output depends on only a few inputs, so we store fewer weights and do less arithmetic. <b>Parameter sharing</b>: the same kernel is used at every position, so we learn one set of weights instead of a separate one per location. <b>Equivariance to translation</b>: shift the input and the feature map shifts the same way — a feature detected in one place is detected identically everywhere. Together these cut parameters from the order of (inputs × outputs) down to the size of one small kernel.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> in a dense layer every output listens to every input — like a classroom where every student must hear every other student at once. In convolution, each output only listens to its few neighbours (sparse), everyone uses the <b>same</b> listening rule (shared), and if the whole class shuffles one seat over, the answers just shuffle one seat over too (equivariant).</p>
+      <p>So instead of memorising a special rule for every spot, the network learns one good rule and applies it everywhere — cheaper to store, faster to run, and it isn't fooled when the picture slides a little.</p>
+    </div>
+
+    <div class="eqn"><span class="lbl">Parameter count: dense vs convolution (1-D, m inputs → n outputs, kernel width k)</span><br>
+      dense: <b>m · n</b> weights &nbsp;&nbsp;⟶&nbsp;&nbsp; convolution: <span class="t">k</span> weights &nbsp;<span class="lbl">(k ≪ m·n)</span> &nbsp;&nbsp;·&nbsp;&nbsp; equivariance: f(shift(x)) = shift(f(x))</div>
+
+    <div class="panel">
+      <div class="panel-t">Receptive field, shared weights, equivariance <small>Highlight an output · resize the kernel · shift the input</small></div>
+      <div class="grid-lab">
+        <div class="cv"><canvas id="spCv" width="460" height="330"></canvas><div class="cv-cap">Top row: input units. The highlighted output (bottom) connects only to its receptive field (violet). The kernel's colours are the <i>same</i> weights reused at every output.</div></div>
+        <div>
+          <div class="slider"><div class="field"><label>Highlight output unit</label><input type="range" id="spJ" min="0" max="10" value="5"></div><output id="spJo" class="mono">5</output></div>
+          <div class="slider"><div class="field"><label>Kernel width k</label><input type="range" id="spK" min="1" max="5" step="2" value="3"></div><output id="spKo" class="mono">3</output></div>
+          <div class="ctl" style="margin:6px 0 10px"><button class="chip mag" id="spShift">⇥ Shift input by one</button></div>
+          <div class="reads">
+            <div class="read pri"><i>Conv weights</i><b id="spConvP">—</b></div>
+            <div class="read warn"><i>Dense would need</i><b id="spDenseP">—</b></div>
+            <div class="read good"><i>Receptive field</i><b id="spRF">—</b></div>
+          </div>
+          <p style="font-size:13px;color:var(--ink2);margin-top:8px" id="spMsg">Each output reads only k inputs, and every output reuses the same k weights. Shift the input feature and watch the output feature move with it — that's equivariance.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 04 POOLING ================= -->
+  <section class="leg" id="l4">
+    <div class="leg-head"><div class="leg-no">04</div><div>
+      <div class="leg-kicker">Summarise a neighbourhood · §9.3</div><h2>Pooling</h2></div></div>
+
+    <p class="lede">A typical convolutional stage runs in three steps: convolve to make feature maps, apply a nonlinearity (the detector stage), then <b>pool</b>. Pooling replaces each small neighbourhood of a feature map with a summary statistic — the maximum (<b>max pooling</b>) or the average (<b>average pooling</b>). Because a summary of a patch barely changes when the patch's contents shift by a pixel, pooling makes the representation approximately <b>invariant to small translations</b>. That is exactly what you want when you care <i>whether</i> a feature is present, not precisely <i>where</i>. Pooling with stride also shrinks the map, cutting later computation.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> squint at a picture. You lose the exact pixels but still see "there's an edge here, a bright spot there." Max pooling is like reporting the <b>loudest</b> thing in each little patch; average pooling reports the <b>typical</b> thing. Either way you keep the gist and drop the fussy detail.</p>
+      <p>The payoff: if the whole thing jiggles by a pixel, the loud thing is still the loudest, so the squinted answer barely changes. The network stops caring about tiny wobbles and focuses on what's actually there.</p>
+    </div>
+
+    <div class="eqn"><span class="lbl">Max and average pooling over a region R</span><br>
+      max-pool: <b>max<sub>(a,b)∈R</sub></b> S(a,b) &nbsp;&nbsp;·&nbsp;&nbsp; avg-pool: <span class="t">(1/|R|) Σ<sub>(a,b)∈R</sub></span> S(a,b) &nbsp;&nbsp;<span class="lbl">→ down-sampled, shift-tolerant map</span></div>
+
+    <div class="panel">
+      <div class="panel-t">Pool a feature map <small>Choose max or average · set the window · shift the input to test invariance</small></div>
+      <div class="ctl" id="poolCtl"></div>
+      <div class="grid-lab">
+        <div class="cv"><canvas id="poolCv" width="460" height="330"></canvas><div class="cv-cap">Left: a feature map partitioned into pooling windows. Right: the pooled (down-sampled) output. Shift the input and compare how little the output moves.</div></div>
+        <div>
+          <div class="slider"><div class="field"><label>Pool window size</label><input type="range" id="poolS" min="2" max="4" value="2"></div><output id="poolSo" class="mono">2</output></div>
+          <div class="ctl" style="margin:6px 0 10px"><button class="chip mag" id="poolShift">⇥ Shift input by one</button></div>
+          <div class="reads">
+            <div class="read pri"><i>Mode</i><b id="poolMode" style="font-size:15px">—</b></div>
+            <div class="read"><i>Output size</i><b id="poolOut">—</b></div>
+            <div class="read good"><i>Δ after 1-px shift</i><b id="poolInv">—</b></div>
+          </div>
+          <p style="font-size:13px;color:var(--ink2);margin-top:8px" id="poolMsg">The change after a one-pixel shift is small — that's the translation invariance pooling buys. Max pooling usually resists the shift better than average pooling.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">Handles variable sizes too</span></div>
+      <p>Pooling over regions that scale with the input lets a network accept images of different sizes and still hand a <b>fixed-size</b> vector to the classifier — essential for real-world pipelines. Learned or overlapping pooling, and global average pooling before the final layer, are common modern choices.</p>
+    </div>
+  </section>
+
+  <!-- ================= 05 NEURO ================= -->
+  <section class="leg" id="l5">
+    <div class="leg-head"><div class="leg-no">05</div><div>
+      <div class="leg-kicker">Where the idea came from · §9.10</div><h2>The Neuroscientific Basis</h2></div></div>
+
+    <p class="lede">Convolutional networks are one of deep learning's clearest success stories drawn from neuroscience. In the 1960s Hubel and Wiesel recorded from a cat's primary visual cortex (area V1) and found cells arranged in a spatial map, each responding to light in a small patch of the visual field — its <b>receptive field</b>. <b>Simple cells</b> fired for edges at a particular orientation and position; <b>complex cells</b> responded to the same orientation but tolerated small shifts. Those two behaviours are almost exactly convolution (an oriented filter applied everywhere) followed by pooling (tolerance to position). Strikingly, the first-layer filters a CNN <i>learns</i> from data look like <b>Gabor functions</b> — the very oriented edge detectors seen in V1.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> deep in your brain, near the back of your head, there are cells that each get excited by a line tilted a certain way in one little corner of what you're looking at. One cell loves upright lines, another loves slanted ones. Stack their answers up and your brain starts to see shapes.</p>
+      <p>When we let a convolutional network teach itself to see, its very first detectors come out looking like those same brain cells — little tilted-line finders. Nobody programmed that in; the network rediscovered a solution evolution already found.</p>
+    </div>
+
+    <div class="eqn"><span class="lbl">Gabor filter — an oriented, localised edge detector (V1 simple-cell model)</span><br>
+      G(x,y) = <b>exp(−(x²+y²)/2σ²)</b> · <span class="t">cos(2π f (x cosθ + y sinθ))</span> &nbsp;&nbsp;<span class="lbl">θ = orientation, f = frequency</span></div>
+
+    <div class="panel">
+      <div class="panel-t">Orientation tuning <small>Rotate the stimulus · read the response of a bank of oriented filters</small></div>
+      <div class="grid-lab">
+        <div class="cv"><canvas id="gbCv" width="460" height="330"></canvas><div class="cv-cap">Left: the input grating and the best-matching Gabor filter. Right: the response of a bank of oriented filters — a tuning curve that peaks at the stimulus orientation.</div></div>
+        <div>
+          <div class="slider"><div class="field"><label>Stimulus orientation</label><input type="range" id="gbAng" min="0" max="170" step="5" value="40"></div><output id="gbAngo" class="mono">40°</output></div>
+          <div class="slider"><div class="field"><label>Spatial frequency</label><input type="range" id="gbFreq" min="1" max="6" value="3"></div><output id="gbFreqo" class="mono">3</output></div>
+          <div class="reads">
+            <div class="read pri"><i>Best filter</i><b id="gbBest">—</b></div>
+            <div class="read good"><i>Peak response</i><b id="gbResp">—</b></div>
+            <div class="read"><i>Selectivity</i><b id="gbStat" style="font-size:15px">—</b></div>
+          </div>
+          <p style="font-size:13px;color:var(--ink2);margin-top:8px" id="gbMsg">Each filter is a Gabor at a different orientation. The bank responds most strongly to the filter whose orientation matches the stimulus — exactly how a V1 simple cell behaves.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">Inspiration, not blueprint</span></div>
+      <p>The analogy is real but loose. CNNs borrow V1's local oriented filtering and pooling, but skip most of the brain's biology — feedback connections, spikes, attention, and the rest of the visual pathway. Neuroscience seeded the architecture; engineering and data did the rest.</p>
+    </div>
+  </section>
+
+  <!-- ================= 06 STRONG PRIOR ================= -->
+  <section class="leg" id="l6">
+    <div class="leg-head"><div class="leg-no">06</div><div>
+      <div class="leg-kicker">A prior baked into the wiring · §9.4</div><h2>Convolution &amp; Pooling as an Infinitely Strong Prior</h2></div></div>
+
+    <p class="lede">A <b>prior probability distribution</b> encodes what we believe about a model's parameters <i>before</i> seeing any data. A weak prior (high variance) barely constrains the weights; a strong prior (low variance) pulls them hard toward certain values. Push this to the limit and you get an <b>infinitely strong prior</b> — one that assigns zero probability to some settings, forbidding them outright no matter what the data says. Here is the key reframing: a convolutional layer is just a fully-connected layer with an infinitely strong prior on its weights. That prior says two things: each unit's weights must be <b>zero outside its small receptive field</b>, and the weights must be <b>identical to its neighbours' (shifted)</b>. Pooling is likewise an infinitely strong prior that each unit should be <b>invariant to small translations</b>.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> a prior is a belief you hold before looking. A gentle belief ("probably smallish weights") nudges you. An <b>infinitely strong</b> belief is a rule you refuse to break — "the answer must not depend on faraway pixels, and the same rule must apply everywhere." Convolution is a dense layer with those two rules locked in before any training begins.</p>
+      <p>That's powerful when the rules are true (they are, for images) — it saves huge effort. But if you forced these rules on data where they're wrong, the network would be crippled by its own confidence. A prior only helps when it matches reality.</p>
+    </div>
+
+    <div class="eqn"><span class="lbl">Convolution = dense layer + infinitely strong prior on W</span><br>
+      p(W) = 0 for weights <b>outside the receptive field</b> &nbsp;·&nbsp; p(W) = 0 unless weights are <span class="t">shared across positions</span> &nbsp;&nbsp;⟹&nbsp; only local, tied weights survive</div>
+
+    <div class="panel">
+      <div class="panel-t">The effective weight matrix <small>See how the prior carves a dense layer into a convolution</small></div>
+      <div class="ctl" id="priCtl"></div>
+      <div class="grid-lab">
+        <div class="cv"><canvas id="priCv" width="460" height="330"></canvas><div class="cv-cap">The weight matrix W (outputs × inputs). Coloured cells are free weights; cells sharing a colour are tied to the same value. Watch the prior zero-out and tie entries.</div></div>
+        <div>
+          <div class="detail">
+            <h4 id="priName">—</h4>
+            <div class="spec" id="priDesc">—</div>
+          </div>
+          <div class="reads" style="margin-top:12px">
+            <div class="read pri"><i>Non-zero entries</i><b id="priNonzero">—</b></div>
+            <div class="read good"><i>Free parameters</i><b id="priParams">—</b></div>
+          </div>
+          <p style="font-size:13px;color:var(--ink2);margin-top:8px" id="priMsg">Dense = every entry free. Locally connected = zero outside a band (local, but not shared). Convolution = that band, with each diagonal tied to one shared value — the fewest free parameters.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">A prior can misfire</span></div>
+      <p>Convolution's prior assumes translation is a symmetry of the task. When it isn't — say the top of an image means something different from the bottom — pure weight sharing can hurt, which is why <b>locally connected</b> and <b>tiled</b> variants exist (§07). Pooling's invariance prior can likewise discard position information a task actually needs.</p>
+    </div>
+  </section>
+
+  <!-- ================= 07 VARIANTS ================= -->
+  <section class="leg" id="l7">
+    <div class="leg-head"><div class="leg-no">07</div><div>
+      <div class="leg-kicker">Knobs on the basic operation · §9.5</div><h2>Variants of the Basic Convolution Function</h2></div></div>
+
+    <p class="lede">Real convolutional layers rarely use the textbook operation unchanged. A handful of knobs control how the kernel moves and what it covers. <b>Stride</b> skips positions to down-sample as you convolve. <b>Padding</b> adds a border (usually zeros) so the output can stay the same size ("same") instead of shrinking ("valid"). <b>Dilation</b> spreads the kernel's taps apart to enlarge the receptive field without adding weights. And convolution always runs over <b>multiple input and output channels</b> at once, so a layer's kernel is really a small 4-D tensor. Related variants — <b>locally connected</b> layers (local but unshared), <b>tiled</b> convolution (a rotating set of kernels), and <b>grouped</b> convolution — trade the sharing prior for flexibility or efficiency.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> the sliding tile has settings. <b>Stride</b> is how big a step it takes — bigger steps, smaller output. <b>Padding</b> is taping an extra blank border around the photo so the tile can reach the edges and the output doesn't shrink. <b>Dilation</b> is spreading the tile's holes apart so it peeks at a wider area while still using the same few weights.</p>
+    </div>
+
+    <div class="eqn"><span class="lbl">Output size along one axis</span><br>
+      o = <b>⌊ (n + 2p − k<sub>eff</sub>) / s ⌋ + 1</b>, &nbsp; with effective kernel <span class="t">k<sub>eff</sub> = d(k−1) + 1</span> &nbsp;<span class="lbl">n input, k kernel, s stride, p pad, d dilation</span></div>
+
+    <div class="panel">
+      <div class="panel-t">Stride · padding · dilation <small>Turn the knobs · read the output size and receptive field</small></div>
+      <div class="grid-lab">
+        <div class="cv"><canvas id="varCv" width="460" height="330"></canvas><div class="cv-cap">A 1-D input (top) with the dilated kernel footprint shown at several stride positions, and the resulting output cells (bottom).</div></div>
+        <div>
+          <div class="slider"><div class="field"><label>Kernel size k</label><input type="range" id="varK" min="2" max="5" value="3"></div><output id="varKo" class="mono">3</output></div>
+          <div class="slider"><div class="field"><label>Stride s</label><input type="range" id="varS" min="1" max="3" value="1"></div><output id="varSo" class="mono">1</output></div>
+          <div class="slider"><div class="field"><label>Padding p</label><input type="range" id="varP" min="0" max="3" value="0"></div><output id="varPo" class="mono">0</output></div>
+          <div class="slider"><div class="field"><label>Dilation d</label><input type="range" id="varD" min="1" max="3" value="1"></div><output id="varDo" class="mono">1</output></div>
+          <div class="reads">
+            <div class="read pri"><i>Output size</i><b id="varOut">—</b></div>
+            <div class="read good"><i>Receptive field</i><b id="varEff">—</b></div>
+            <div class="read"><i>Mode</i><b id="varMode" style="font-size:15px">—</b></div>
+          </div>
+          <p style="font-size:13px;color:var(--ink2);margin-top:8px" id="varMsg">Stride shrinks the output; padding grows it back; dilation widens the receptive field without new weights.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="three">
+      <div class="panel"><div class="panel-t">Locally connected</div>
+        <p style="font-size:14px">Local receptive fields but <b>no sharing</b> — each position has its own weights. Useful when the same feature shouldn't be assumed everywhere (e.g. faces, where eyes and mouth sit in fixed regions).</p></div>
+      <div class="panel"><div class="panel-t">Tiled convolution</div>
+        <p style="font-size:14px">Cycle through a small <b>set</b> of kernels across positions instead of one. A middle ground: more capacity than full sharing, far fewer weights than fully unshared.</p></div>
+      <div class="panel"><div class="panel-t">Grouped / channels</div>
+        <p style="font-size:14px">Split channels into groups convolved separately for efficiency. In general a kernel spans <b>all input channels</b> and produces <b>many output channels</b> — a 4-D weight tensor.</p></div>
+    </div>
+  </section>
+
+  <!-- ================= 08 STRUCTURED OUTPUTS + DATA TYPES ================= -->
+  <section class="leg" id="l8">
+    <div class="leg-head"><div class="leg-no">08</div><div>
+      <div class="leg-kicker">Beyond one label · §9.6–9.7</div><h2>Structured Outputs · Data Types &amp; Channels</h2></div></div>
+
+    <p class="lede">A convolutional network need not output a single class. Because convolution preserves spatial layout, it can emit a whole <b>structured output</b> — a tensor as large as the input. The classic case is <b>semantic segmentation</b>: label every pixel with the object it belongs to, producing a map the same shape as the image. The same machinery handles inputs of many shapes. Convolution is defined for data of any dimensionality, each axis a grid, plus a <b>channel</b> axis holding co-located measurements (the red, green and blue of a pixel; the two ears of stereo audio; the bands of a satellite image).</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> sometimes the answer isn't one word ("cat") but a whole coloured-in map ("these pixels are road, these are sky, these are people"). And the input isn't always a photo — it can be a sound (a line of numbers), a photo (a grid), or a video or scan (a stack of grids). At each spot there can be several numbers at once — the <b>channels</b>, like the three colours in a pixel.</p>
+    </div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panel-t">Structured outputs</div>
+        <ul class="kl">
+          <li><b>Per-pixel labels — </b>segmentation returns a class for every pixel; the output tensor matches the image's height and width.</li>
+          <li><b>Keep resolution — </b>avoid heavy down-sampling, or up-sample back, so fine spatial detail survives to the output.</li>
+          <li><b>Refine iteratively — </b>early architectures ran the same convolutions repeatedly to sharpen a pixel-label map.</li>
+          <li><b>Uses — </b>medical organ/lesion outlining, self-driving scene parsing, satellite land-cover maps, pose and depth estimation.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <div class="panel-t">Data by dimensionality × channels</div>
+        <div class="spec" style="line-height:1.9">
+          <b>1-D</b> · audio (1 ch), skeleton animation, sensor time-series (multi-ch)<br>
+          <b>2-D</b> · greyscale image (1 ch), RGB photo (3 ch), audio spectrogram<br>
+          <b>3-D</b> · CT/MRI volumes, video (time), multi-band hyperspectral cubes
+        </div>
+        <p style="font-size:13.5px;color:var(--ink2);margin-top:8px">The kernel gains one grid axis per data dimension and always spans every channel, so its weight tensor is <b>(k × … × in-channels × out-channels)</b>.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Channels, drawn <small>A pixel is a stack of co-located numbers</small></div>
+      <svg viewBox="0 0 900 190" role="img" aria-label="Diagram: an RGB image is three stacked channel grids; a convolution kernel spans all input channels and produces several output channels" style="width:100%;height:auto;background:#fff;border:1px solid #e3e5df;border-radius:8px">
+        <text x="24" y="28" font-family="IBM Plex Mono,monospace" font-size="11" fill="#4B515A">input · 3 channels (R,G,B)</text>
+        <rect x="40" y="52" width="96" height="96" fill="#f4c6c6" stroke="#c0392b"/>
+        <rect x="60" y="42" width="96" height="96" fill="#c8e6c9" stroke="#2e7d32"/>
+        <rect x="80" y="32" width="96" height="96" fill="#c5d8f2" stroke="#2e5aa8"/>
+        <text x="300" y="86" font-family="IBM Plex Mono,monospace" font-size="12" fill="#6C30D9">kernel spans all 3 in-channels</text>
+        <text x="300" y="104" font-family="IBM Plex Mono,monospace" font-size="12" fill="#C81C6E">→ produces N out-channels</text>
+        <g stroke="#b9bfb2" stroke-width="1.4" fill="none" marker-end="url(#ar2)"><path d="M200 92 L292 92"/><path d="M560 92 L636 92"/></g>
+        <defs><marker id="ar2" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#b9bfb2"/></marker></defs>
+        <g>
+          <rect x="648" y="60" width="70" height="70" fill="#efe7fb" stroke="#6C30D9"/>
+          <rect x="640" y="52" width="70" height="70" fill="#e6d9fa" stroke="#6C30D9"/>
+          <rect x="632" y="44" width="70" height="70" fill="#dcc9f7" stroke="#6C30D9"/>
+          <rect x="624" y="36" width="70" height="70" fill="#d2bbf4" stroke="#6C30D9"/>
+        </g>
+        <text x="628" y="150" font-family="IBM Plex Mono,monospace" font-size="11" fill="#4B515A">output feature maps</text>
+      </svg>
+    </div>
+  </section>
+
+  <!-- ================= 09 EFFICIENT ================= -->
+  <section class="leg" id="l9">
+    <div class="leg-head"><div class="leg-no">09</div><div>
+      <div class="leg-kicker">Doing it fast · §9.8</div><h2>Efficient Convolution Algorithms</h2></div></div>
+
+    <p class="lede">Modern networks apply millions of convolutions, so the arithmetic matters. Several tricks make it cheaper. A <b>separable</b> kernel factors into the outer product of two 1-D kernels, so a d-dimensional convolution becomes a sequence of 1-D passes — a k×k filter drops from k² multiplies per pixel to just 2k. Large kernels can be applied in the <b>frequency domain</b> via the FFT, where convolution becomes cheap point-wise multiplication. And specialised routines (Winograd-style minimal-multiply algorithms, im2col + matrix multiply on GPUs) squeeze out more. These don't change what convolution computes — only how quickly.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> some big stamps can be done as two little swipes — first blur left-to-right, then blur top-to-bottom — and you get the exact same result with far less work. If a stamp can be split like that, splitting it is a bargain: a 9×9 stamp needs 81 multiplications per spot, but two swipes need only 18.</p>
+    </div>
+
+    <div class="eqn"><span class="lbl">Separable convolution — cost per output pixel</span><br>
+      K = <b>u vᵀ</b> (outer product) &nbsp;⟹&nbsp; naive <span class="t">k²</span> multiplies &nbsp;→&nbsp; separable <span class="t">2k</span> multiplies &nbsp;·&nbsp; speed-up ≈ <b>k / 2</b></div>
+
+    <div class="panel">
+      <div class="panel-t">Separable savings <small>Grow the kernel · watch the multiply count and speed-up</small></div>
+      <div class="grid-lab">
+        <div class="cv"><canvas id="sepCv" width="460" height="330"></canvas><div class="cv-cap">A separable Gaussian kernel (centre) equals a column vector (left) times a row vector (top). The bars compare naive k² vs separable 2k multiplies per pixel.</div></div>
+        <div>
+          <div class="slider"><div class="field"><label>Kernel size k (odd)</label><input type="range" id="sepK" min="3" max="11" step="2" value="5"></div><output id="sepKo" class="mono">5</output></div>
+          <div class="reads">
+            <div class="read warn"><i>Naive · k²</i><b id="sepNaive">—</b></div>
+            <div class="read good"><i>Separable · 2k</i><b id="sepSep">—</b></div>
+            <div class="read pri"><i>Speed-up</i><b id="sepSpeed">—</b></div>
+          </div>
+          <p style="font-size:13px;color:var(--ink2);margin-top:8px" id="sepMsg">Not every kernel is separable, but many useful ones (Gaussian blur, Sobel) are. For very large kernels the FFT wins instead, turning convolution into O(n log n) point-wise multiplication.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 10 RANDOM + NORM ================= -->
+  <section class="leg" id="l10">
+    <div class="leg-head"><div class="leg-no">10</div><div>
+      <div class="leg-kicker">Cheap features · steady training · §9.9</div><h2>Random / Unsupervised Features &amp; Normalization</h2></div></div>
+
+    <p class="lede">Training convolutional kernels by back-propagation is expensive, and it isn't the only option. Surprisingly, <b>random</b> filters already act as decent feature extractors — a bank of untrained convolutions still highlights edges, blobs and textures, and a classifier on top of random-plus-pooling features can do respectably. <b>Unsupervised</b> methods (clustering image patches with k-means, greedy layer-wise pretraining) learn filters without labels, cheaply. These approaches let you search architectures fast, or bootstrap when labelled data is scarce. Separately, deep stacks train far better with <b>normalization</b>: <b>batch normalization</b> re-centres and re-scales each layer's activations so their distribution stays stable, which speeds and steadies learning.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> even a stencil you cut at <b>random</b> catches <i>some</i> edges — so you don't always have to painstakingly design the first layer. And <b>normalizing</b> is like re-scaling everyone's scores each round so the next step isn't thrown off by wild swings; it keeps the numbers flowing through a deep network well-behaved.</p>
+    </div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panel-t">Random filters still find structure <small>Re-roll the bank · they keep catching edges</small></div>
+        <div class="grid-lab">
+          <div class="cv"><canvas id="rndCv" width="460" height="330"></canvas><div class="cv-cap">Top: a bank of random 5×5 filters. Bottom: their feature maps on a fixed input — edges and textures light up even with no training.</div></div>
+          <div>
+            <div class="slider"><div class="field"><label>Number of filters</label><input type="range" id="rndN" min="2" max="6" value="4"></div><output id="rndNo" class="mono">4</output></div>
+            <div class="ctl" style="margin:6px 0 10px"><button class="chip mag" id="rndNew">⟳ New random filters</button></div>
+            <div class="reads">
+              <div class="read good"><i>Edge energy captured</i><b id="rndEdge">—</b></div>
+            </div>
+            <p style="font-size:13px;color:var(--ink2);margin-top:8px" id="rndMsg">Random filters are unbiased edge/texture detectors on average. Training just sharpens and specialises them — but the raw structure is already useful.</p>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-t">Batch normalization <small>Pick a norm · set γ, β · watch the distribution settle</small></div>
+        <div class="ctl" id="nrmCtl"></div>
+        <div class="grid-lab">
+          <div class="cv"><canvas id="nrmCv" width="460" height="330"></canvas><div class="cv-cap">Left: a batch of raw activations (uneven mean/spread). Right: after normalize-then-scale/shift with your γ and β.</div></div>
+          <div>
+            <div class="slider"><div class="field"><label>Scale γ</label><input type="range" id="nrmG" min="0" max="30" value="10"></div><output id="nrmGo" class="mono">1.0</output></div>
+            <div class="slider"><div class="field"><label>Shift β</label><input type="range" id="nrmB" min="-20" max="20" value="0"></div><output id="nrmBo" class="mono">0.0</output></div>
+            <div class="reads">
+              <div class="read pri"><i>Output mean</i><b id="nrmMean">—</b></div>
+              <div class="read good"><i>Output std</i><b id="nrmStd">—</b></div>
+            </div>
+            <p style="font-size:13px;color:var(--ink2);margin-top:8px" id="nrmMsg">Normalize to zero-mean/unit-variance, then let learned γ and β restore whatever scale and shift the network actually needs.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="eqn"><span class="lbl">Batch normalization</span><br>
+      x̂ = <b>(x − μ<sub>B</sub>) / √(σ²<sub>B</sub> + ε)</b> &nbsp;&nbsp;⟹&nbsp;&nbsp; y = <span class="t">γ x̂ + β</span> &nbsp;<span class="lbl">μ,σ from the mini-batch; γ,β learned</span></div>
+  </section>
+
+  <!-- ================= 11 APPLICATIONS + IMAGENET ================= -->
+  <section class="leg" id="l11">
+    <div class="leg-head"><div class="leg-no">11</div><div>
+      <div class="leg-kicker">The payoff · §9.11 &amp; history</div><h2>Applications in Computer Vision · ImageNet</h2></div></div>
+
+    <p class="lede">Convolutional networks are the workhorse of modern computer vision. Stacked conv–pool stages build a <b>hierarchy of features</b>: the first layer finds oriented edges, the next combines them into corners and textures, later layers assemble object parts, and the top layers respond to whole objects. The turning point was <b>ImageNet</b> — a dataset of over a million labelled photos across a thousand categories — and its annual challenge (ILSVRC). In 2012, the convolutional network <b>AlexNet</b> cut the error rate so dramatically that deep learning became the default for vision almost overnight, and successive convolutional designs pushed accuracy past the previous state of the art year after year.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> the network sees in layers, like building with blocks. First it notices little lines. Then it snaps lines into corners and patterns. Then patterns into parts — an ear, a wheel. Then parts into a whole thing — a cat, a car. Each layer stands on the one below.</p>
+      <p>Then came a giant photo contest called ImageNet. In 2012 a convolutional network won it by a mile, and that single result convinced the world these networks were the way to make computers see.</p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Climb the feature hierarchy <small>Move up the layers · see what each detects</small></div>
+      <div class="grid-lab">
+        <div class="cv"><canvas id="hierCv" width="460" height="330"></canvas><div class="cv-cap">As depth increases, the receptive field grows and features go from edges → textures → parts → objects.</div></div>
+        <div>
+          <div class="slider"><div class="field"><label>Layer depth</label><input type="range" id="hierL" min="1" max="4" value="1"></div><output id="hierLo" class="mono">1</output></div>
+          <div class="reads">
+            <div class="read pri"><i>This layer detects</i><b id="hierWhat" style="font-size:15px">—</b></div>
+            <div class="read good"><i>Receptive field</i><b id="hierRF">—</b></div>
+          </div>
+          <p style="font-size:13px;color:var(--ink2);margin-top:8px" id="hierMsg">Each stage combines the one below, so features grow larger and more abstract with depth — the essence of a deep vision model.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Vision tasks CNNs power</div>
+      <div class="tk">
+        <div class="tk-item"><i>01</i><div><h4>Classification</h4><p>Assign one label to a whole image — the ImageNet task; the foundation everything else builds on.</p></div></div>
+        <div class="tk-item"><i>02</i><div><h4>Detection</h4><p>Find and box every object and its class — for driving, retail, and security.</p></div></div>
+        <div class="tk-item"><i>03</i><div><h4>Segmentation</h4><p>Label every pixel — medical outlining, scene parsing, satellite land-cover.</p></div></div>
+        <div class="tk-item"><i>04</i><div><h4>Recognition &amp; retrieval</h4><p>Faces, landmarks, product and image search from learned feature embeddings.</p></div></div>
+        <div class="tk-item"><i>05</i><div><h4>Restoration</h4><p>Denoising, super-resolution and inpainting that rebuild missing or degraded detail.</p></div></div>
+        <div class="tk-item"><i>06</i><div><h4>Beyond images</h4><p>Backbones for video, medical volumes, audio spectrograms and even board-game boards.</p></div></div>
+      </div>
+    </div>
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">The ImageNet moment</span></div>
+      <p>ImageNet's scale mattered as much as any single architecture: a million+ labelled images gave deep convolutional networks enough signal to shine, and GPUs made training them feasible. The 2012 result reset the field — the ideas in this chapter, at scale, are what made computers competitive with humans on many visual tasks.</p>
+    </div>
+  </section>
+
+  <!-- ================= Σ REVISION ================= -->
+  <section class="leg" id="l12">
+    <div class="leg-head"><div class="leg-no">&Sigma;</div><div>
+      <div class="leg-kicker">Consolidate · then carry off the map</div><h2>Revision, Quiz &amp; Key Takeaways</h2></div></div>
+
+    <p class="lede">Twelve checks across the chapter — from why images break dense layers, through the convolution operation, its motivations, pooling, the neuroscientific roots, the infinitely-strong-prior view, convolution variants, structured outputs and data types, efficient algorithms, random/unsupervised features, normalization, and the ImageNet-era applications. Pick an answer to see the reasoning.</p>
+
+    <div class="panel">
+      <div class="panel-t">Self-test <small><span id="score">0 / 12</span> correct</small></div>
+      <div id="quiz"></div>
+      <div class="ctl" style="margin-top:14px"><button class="chip mag" id="qReset">Reset quiz</button></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Likely long-answer questions</div>
+      <ul class="kl">
+        <li>Explain why fully-connected layers scale poorly on images and how convolution's three properties — sparse interactions, parameter sharing, and equivariance — address each problem.</li>
+        <li>Define the discrete convolution (cross-correlation) used in CNNs. What is a kernel, and what does a feature map represent?</li>
+        <li>Describe the three stages of a typical convolutional layer. What statistic does pooling compute, and why does it produce approximate translation invariance?</li>
+        <li>Summarise the neuroscientific basis of CNNs. Relate simple and complex cells in V1 to convolution and pooling, and to Gabor filters.</li>
+        <li>Explain the claim that convolution is a fully-connected layer with an infinitely strong prior. State the two constraints that prior imposes, and what pooling's prior asserts.</li>
+        <li>Define stride, padding, and dilation, and give the output-size formula. When would you use a locally connected or tiled convolution instead of standard convolution?</li>
+        <li>What is a structured output? Describe semantic segmentation and how convolution's spatial preservation makes it possible.</li>
+        <li>How does convolution generalise across data of different dimensionalities and channel counts? Give a 1-D, 2-D, and 3-D example with channels.</li>
+        <li>Explain two ways to make convolution more efficient (separable kernels and FFT), including the multiply-count argument for separability.</li>
+        <li>Discuss random and unsupervised convolutional features. Why can random filters be useful, and what does batch normalization do for training deep convolutional networks?</li>
+      </ul>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Glossary <small>Click any dotted term anywhere on the page</small></div>
+      <input class="search" id="glossQ" type="search" placeholder="Filter terms — try 'stride' or 'pooling'">
+      <div class="gloss no-abbr" id="gloss"></div>
+    </div>
+
+    <div class="headline">
+      <h3>If you remember only one thing</h3>
+      <p>A convolutional network is a neural network that <b>bakes the structure of grid data into its wiring</b>. By making connections <b>local</b>, sharing one small <b>filter</b> across every position, and <b>pooling</b> to tolerate small shifts, it slashes parameters, respects spatial layout, and gains translation tolerance. Read another way, convolution and pooling are <b>infinitely strong priors</b> — rules assumed before any data — and they happen to be true for images, audio and video. Stack these layers into a feature hierarchy, add enough data (ImageNet) and compute (GPUs), and you get the systems that gave machines sight.</p>
+    </div>
+
+    <div class="tk">
+      <div class="tk-item"><i>01</i><div><h4>Grid data → build in the structure</h4>
+        <p>Dense layers waste parameters and ignore geometry; convolution assumes local, translation-symmetric structure and exploits it.</p></div></div>
+      <div class="tk-item"><i>02</i><div><h4>Convolution = slide a kernel</h4>
+        <p>At each position, sum input×kernel to score a local pattern; sweep to get a feature map.</p></div></div>
+      <div class="tk-item"><i>03</i><div><h4>Sparse · shared · equivariant</h4>
+        <p>Few connections per unit, one filter reused everywhere, and outputs that shift with the input.</p></div></div>
+      <div class="tk-item"><i>04</i><div><h4>Pooling → shift tolerance</h4>
+        <p>Max/average over a patch summarises it, so small translations barely change the result and the map shrinks.</p></div></div>
+      <div class="tk-item"><i>05</i><div><h4>Rooted in V1</h4>
+        <p>Oriented simple cells ≈ convolution; shift-tolerant complex cells ≈ pooling; learned first-layer filters ≈ Gabors.</p></div></div>
+      <div class="tk-item"><i>06</i><div><h4>An infinitely strong prior</h4>
+        <p>Convolution is a dense layer forced to be local and weight-shared; pooling forces local translation invariance.</p></div></div>
+      <div class="tk-item"><i>07</i><div><h4>Knobs &amp; data shapes</h4>
+        <p>Stride, padding, dilation, channels — and convolution works in 1-D, 2-D, or 3-D, including structured, per-pixel outputs.</p></div></div>
+      <div class="tk-item"><i>08</i><div><h4>Fast, cheap, and scalable</h4>
+        <p>Separable kernels and FFTs speed it up; random/unsupervised features and batch norm make training cheap and stable — powering ImageNet-era vision.</p></div></div>
+    </div>
+
+    <div class="foot no-abbr">
+      <span>CHAPTER 9 · CONVOLUTIONAL NETWORKS</span>
+      <span>10 LIVE LABS · DRAG EVERY CONTROL · EVERYTHING RUNS LIVE</span>
+      <span>SLIDE THE FILTER AGAIN BEFORE THE EXAM</span>
+    </div>
+  </section>
+
+  </main>
+</div>
+<script>
+(function(){
+"use strict";
+const $=(s,r)=>(r||document).querySelector(s), $$=(s,r)=>[...(r||document).querySelectorAll(s)];
+const fmt=(n,d)=>Number(n).toFixed(d===undefined?1:d);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const TAU=Math.PI*2;
+
+/* ---------- rail + progress ---------- */
+const legs=$$(".leg"), links=$$("#rail a");
+function onScroll(){
+  const y=window.scrollY+140; let idx=0;
+  legs.forEach((l,i)=>{ if(l.offsetTop<=y) idx=i; });
+  links.forEach((a,i)=>a.classList.toggle("on",i===idx));
+  const d=document.documentElement;
+  const p=Math.min(100,Math.max(0,(window.scrollY/(d.scrollHeight-d.clientHeight))*100));
+  $("#progFill").style.width=p+"%"; $("#progTxt").textContent=Math.round(p)+"%";
+}
+window.addEventListener("scroll",onScroll,{passive:true}); onScroll();
+
+const railEl=$("#rail"),hamEl=$("#ham"),railBg=$("#railBg");
+function railSet(open){
+  railEl.classList.toggle("open",open);
+  hamEl.classList.toggle("open",open);
+  railBg.classList.toggle("on",open);
+  hamEl.setAttribute("aria-expanded",open?"true":"false");
+  document.body.style.overflow=open?"hidden":"";
+}
+hamEl.addEventListener("click",()=>railSet(!railEl.classList.contains("open")));
+$("#railX").addEventListener("click",()=>railSet(false));
+railBg.addEventListener("click",()=>railSet(false));
+document.addEventListener("keydown",e=>{if(e.key==="Escape")railSet(false);});
+links.forEach(aEl=>aEl.addEventListener("click",()=>railSet(false)));
+
+/* seeded RNG */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function gauss(rng){let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(TAU*v);}
+
+/* chip group helper */
+function chipGroup(host,labels,initial,onPick){
+  const el=$(host); if(!el) return []; el.innerHTML="";
+  const btns=labels.map((lb,i)=>{
+    const b=document.createElement("button");
+    b.className="chip"+(i===initial?" mag on":""); b.textContent=lb;
+    b.addEventListener("click",()=>{btns.forEach(x=>x.classList.remove("on"));b.classList.add("on");onPick(i);});
+    el.appendChild(b); return b;
+  });
+  return btns;
+}
+
+/* drawing helpers */
+function gcell(cx,x,y,w,h,v){ v=clamp(v,0,1); const g=Math.round(20+v*220); cx.fillStyle="rgb("+g+","+g+","+g+")"; cx.fillRect(x,y,w,h); }
+function scell(cx,x,y,w,h,v){ // v in [-1,1]: + violet, - teal
+  v=clamp(v,-1,1); let col;
+  if(v>=0) col="rgba(108,48,217,"+(0.12+0.8*v)+")";
+  else col="rgba(15,124,135,"+(0.12+0.8*(-v))+")";
+  cx.fillStyle="#fff";cx.fillRect(x,y,w,h); cx.fillStyle=col;cx.fillRect(x,y,w,h);
+}
+function label(cx,t,x,y,col){ cx.fillStyle=col||"#8a907f"; cx.font="10px 'IBM Plex Mono',monospace"; cx.fillText(t,x,y); }
+function bg(cx,W,H){ cx.clearRect(0,0,W,H); cx.fillStyle="#fff"; cx.fillRect(0,0,W,H); }
+
+/* ================= ST01 · the convolution operation ================= */
+(function(){
+  const cv=$("#convCv"); if(!cv) return; const cx=cv.getContext("2d"),W=cv.width,H=cv.height;
+  const N=12, OUT=N-2; // valid 3x3
+  // synthetic image: vertical edge + bright block
+  const img=[]; for(let y=0;y<N;y++){ img[y]=[]; for(let x=0;x<N;x++){
+    let v=0.18; if(x>=6) v=0.68; if(x>=2&&x<=5&&y>=2&&y<=5) v=0.92; if(y>=8&&x<6) v=0.40; img[y][x]=v; } }
+  const kernels={
+    "Edge · Laplacian":[[0,-1,0],[-1,4,-1],[0,-1,0]],
+    "Sobel · vertical":[[-1,0,1],[-2,0,2],[-1,0,1]],
+    "Sobel · horizontal":[[-1,-2,-1],[0,0,0],[1,2,1]],
+    "Blur · box":[[1/9,1/9,1/9],[1/9,1/9,1/9],[1/9,1/9,1/9]],
+    "Sharpen":[[0,-1,0],[-1,5,-1],[0,-1,0]],
+    "Identity":[[0,0,0],[0,1,0],[0,0,0]]
+  };
+  const names=Object.keys(kernels); let ki=1, pos=0, sweep=null;
+  function conv(K){ const o=[]; for(let r=0;r<OUT;r++){ o[r]=[]; for(let c=0;c<OUT;c++){ let s=0;
+    for(let m=0;m<3;m++)for(let n=0;n<3;n++) s+=img[r+m][c+n]*K[m][n]; o[r][c]=s; } } return o; }
+  function draw(){
+    bg(cx,W,H);
+    const K=kernels[names[ki]]; const out=conv(K);
+    const r=Math.floor(pos/OUT), c=pos%OUT;
+    // input
+    const ix=14, iy=40, cs=11;
+    label(cx,"INPUT  12×12",ix,30);
+    for(let y=0;y<N;y++)for(let x=0;x<N;x++) gcell(cx,ix+x*cs,iy+y*cs,cs,cs,img[y][x]);
+    cx.strokeStyle="#e3e5df";cx.lineWidth=1;cx.strokeRect(ix,iy,N*cs,N*cs);
+    // window
+    cx.strokeStyle="#6C30D9";cx.lineWidth=2.4;cx.strokeRect(ix+c*cs,iy+r*cs,3*cs,3*cs);
+    // kernel
+    const kx=190, ky=120, ks=22;
+    label(cx,"KERNEL",kx,110,"#6C30D9");
+    for(let m=0;m<3;m++)for(let n=0;n<3;n++){ cx.fillStyle="#f3f0fb";cx.fillRect(kx+n*ks,ky+m*ks,ks,ks);
+      cx.strokeStyle="#d5cbe8";cx.strokeRect(kx+n*ks,ky+m*ks,ks,ks);
+      cx.fillStyle="#4B515A";cx.font="10px 'IBM Plex Mono',monospace";cx.textAlign="center";
+      cx.fillText(fmt(K[m][n],K[m][n]%1?2:0),kx+n*ks+ks/2,ky+m*ks+ks/2+3);cx.textAlign="left"; }
+    // multiply arrow
+    label(cx,"⊙ Σ →",kx+8,ky+3*ks+22,"#C81C6E");
+    // output
+    let mn=1e9,mx=-1e9; for(let y=0;y<OUT;y++)for(let x=0;x<OUT;x++){mn=Math.min(mn,out[y][x]);mx=Math.max(mx,out[y][x]);}
+    const rng=(mx-mn)||1; const ox=300, oy=40, ocs=12;
+    label(cx,"FEATURE MAP  10×10",ox,30,"#0F7C87");
+    for(let y=0;y<OUT;y++)for(let x=0;x<OUT;x++){ gcell(cx,ox+x*ocs,oy+y*ocs,ocs,ocs,(out[y][x]-mn)/rng); }
+    cx.strokeStyle="#e3e5df";cx.strokeRect(ox,oy,OUT*ocs,OUT*ocs);
+    cx.strokeStyle="#C81C6E";cx.lineWidth=2;cx.strokeRect(ox+c*ocs,oy+r*ocs,ocs,ocs);
+    // reads
+    $("#convKernel").textContent=names[ki];
+    $("#convOut").textContent="10 × 10";
+    $("#convVal").textContent=fmt(out[r][c],2);
+  }
+  chipGroup("#convCtl",names,ki,i=>{ki=i;draw();});
+  $("#convPos").addEventListener("input",e=>{pos=+e.target.value;$("#convPoso").textContent=pos;draw();});
+  $("#convSweep").addEventListener("click",function(){
+    if(sweep){clearInterval(sweep);sweep=null;this.textContent="▶ Auto-sweep";return;}
+    this.textContent="⏸ Pause";
+    sweep=setInterval(()=>{ pos=(pos+1)%(OUT*OUT); $("#convPos").value=pos; $("#convPoso").textContent=pos; draw(); },130);
+  });
+  draw();
+})();
+
+/* ================= ST02 · sparse, shared, equivariant ================= */
+(function(){
+  const cv=$("#spCv"); if(!cv) return; const cx=cv.getContext("2d"),W=cv.width,H=cv.height;
+  const M=13; let k=3, j=5, bump=4;
+  const kcol=["#6C30D9","#C81C6E","#0F7C87","#B27412","#8a4fd6"];
+  function nOut(){ return M-(k-1); }
+  function draw(){
+    bg(cx,W,H);
+    const n=nOut(); j=clamp(j,0,n-1);
+    const ix=24, ox=24, gap=(W-48)/(M-1), topY=70, botY=250;
+    // response bump position from input bump (valid conv, peak near bump-(k-1)/2)
+    const resp=clamp(bump-Math.floor((k-1)/2),0,n-1);
+    label(cx,"INPUT · "+M+" units",ix,44,"#4B515A");
+    label(cx,"OUTPUT · "+n+" units (kernel width "+k+")",ox,botY+40,"#0F7C87");
+    // connection lines for highlighted output j -> its receptive field [j..j+k-1]
+    for(let t=0;t<k;t++){ const i=j+t; const x1=ix+i*gap, x2=ox+j*((W-48)/(n-1||1));
+      cx.strokeStyle=kcol[t%kcol.length];cx.lineWidth=2;cx.globalAlpha=.55;
+      cx.beginPath();cx.moveTo(x1,topY+10);cx.lineTo(x2,botY-10);cx.stroke();cx.globalAlpha=1; }
+    // input nodes
+    for(let i=0;i<M;i++){ const x=ix+i*gap;
+      const inRF=(i>=j&&i<j+k);
+      cx.beginPath();cx.arc(x,topY,9,0,TAU);
+      cx.fillStyle= i===bump? "#B27412" : (inRF? "#efe7fb":"#eef1ec");
+      cx.fill(); cx.strokeStyle= inRF? "#6C30D9":"#cfd3ca"; cx.lineWidth= inRF?2:1; cx.stroke(); }
+    // output nodes
+    const ogap=(W-48)/(n-1||1);
+    for(let o=0;o<n;o++){ const x=ox+o*ogap;
+      cx.beginPath();cx.arc(x,botY,9,0,TAU);
+      cx.fillStyle= o===resp? "#B27412": (o===j? "#dcfaf0":"#eef1ec");
+      cx.fill(); cx.strokeStyle= o===j? "#0F7C87":"#cfd3ca"; cx.lineWidth= o===j?2.4:1; cx.stroke(); }
+    // shared-weights legend
+    label(cx,"shared weights (same colours reused at every output):",ix,150,"#8a907f");
+    for(let t=0;t<k;t++){ cx.fillStyle=kcol[t%kcol.length];cx.fillRect(ix+t*26,158,18,10); }
+    label(cx,"gold = a moving feature; it appears in the output at the matching spot (equivariance)",ix,196,"#B27412");
+    // reads
+    $("#spConvP").textContent=k+"  weights";
+    $("#spDenseP").textContent=(M*n)+"  weights";
+    $("#spRF").textContent=k+"  inputs";
+  }
+  $("#spJ").addEventListener("input",e=>{j=+e.target.value;$("#spJo").textContent=j;draw();});
+  $("#spK").addEventListener("input",e=>{k=+e.target.value;$("#spKo").textContent=k;draw();});
+  $("#spShift").addEventListener("click",()=>{ bump=(bump+1)%M;
+    $("#spMsg").textContent="The feature moved one step; its response in the output moved one step too — the map is equivariant to translation, not scrambled by it."; draw(); });
+  draw();
+})();
+
+/* ================= ST03 · pooling ================= */
+(function(){
+  const cv=$("#poolCv"); if(!cv) return; const cx=cv.getContext("2d"),W=cv.width,H=cv.height;
+  const N=8; let mode=0, s=2, sh=0; // mode 0 max, 1 avg
+  const base=[]; { const rng=mulberry32(11);
+    for(let y=0;y<N;y++){ base[y]=[]; for(let x=0;x<N;x++){ const dx=x-3.2,dy=y-3.0;
+      base[y][x]=clamp(0.15+0.9*Math.exp(-(dx*dx+dy*dy)/5)+0.06*gauss(rng),0,1); } } }
+  function shifted(sft){ const g=[]; for(let y=0;y<N;y++){ g[y]=[]; for(let x=0;x<N;x++){ g[y][x]=base[y][(x-sft+N)%N]; } } return g; }
+  function pool(g){ const o=Math.floor(N/s), out=[]; for(let r=0;r<o;r++){ out[r]=[]; for(let c=0;c<o;c++){
+    let acc=(mode===0)?-1e9:0; for(let m=0;m<s;m++)for(let n=0;n<s;n++){ const v=g[r*s+m][c*s+n]; acc=(mode===0)?Math.max(acc,v):acc+v; }
+    out[r][c]=(mode===0)?acc:acc/(s*s); } } return out; }
+  function draw(){
+    bg(cx,W,H);
+    const g=shifted(sh), o=Math.floor(N/s), out=pool(g);
+    const ix=18, iy=54, cs=26;
+    label(cx,"FEATURE MAP  8×8"+(sh?"  (shifted +1)":""),ix,42,"#4B515A");
+    for(let y=0;y<N;y++)for(let x=0;x<N;x++) gcell(cx,ix+x*cs,iy+y*cs,cs,cs,g[y][x]);
+    // pooling window grid
+    cx.strokeStyle="#C81C6E";cx.lineWidth=1.6;
+    for(let r=0;r<=o;r++){ cx.beginPath();cx.moveTo(ix,iy+r*s*cs);cx.lineTo(ix+o*s*cs,iy+r*s*cs);cx.stroke(); }
+    for(let c=0;c<=o;c++){ cx.beginPath();cx.moveTo(ix+c*s*cs,iy);cx.lineTo(ix+c*s*cs,iy+o*s*cs);cx.stroke(); }
+    // output
+    const ox=300, oy=54, ocs=Math.min(40,(N*cs)/o);
+    label(cx,"POOLED  "+o+"×"+o,ox,42,"#0F7C87");
+    for(let r=0;r<o;r++)for(let c=0;c<o;c++) gcell(cx,ox+c*ocs,oy+r*ocs,ocs,ocs,out[r][c]);
+    cx.strokeStyle="#0F7C87";cx.strokeRect(ox,oy,o*ocs,o*ocs);
+    // invariance: compare pooled(sh0) vs pooled(sh1)
+    const a=pool(shifted(0)), b=pool(shifted(1)); let d=0,cnt=0;
+    for(let r=0;r<o;r++)for(let c=0;c<o;c++){ d+=Math.abs(a[r][c]-b[r][c]); cnt++; }
+    const delta=d/cnt;
+    $("#poolMode").textContent=mode===0?"max":"average";
+    $("#poolOut").textContent=o+" × "+o;
+    $("#poolInv").textContent=fmt(delta,3);
+  }
+  chipGroup("#poolCtl",["Max pooling","Average pooling"],0,i=>{mode=i;draw();});
+  $("#poolS").addEventListener("input",e=>{s=+e.target.value;$("#poolSo").textContent=s;draw();});
+  $("#poolShift").addEventListener("click",()=>{ sh=sh?0:1;
+    $("#poolMsg").textContent="Even after shifting the input, the pooled summary barely changes — that small Δ is the translation invariance pooling provides."; draw(); });
+  draw();
+})();
+
+/* ================= ST04 · Gabor / orientation tuning ================= */
+(function(){
+  const cv=$("#gbCv"); if(!cv) return; const cx=cv.getContext("2d"),W=cv.width,H=cv.height;
+  const P=22, sig=P/4.5; let ang=40, freq=3;
+  function grating(phiDeg,f){ const g=[]; const th=phiDeg*Math.PI/180;
+    for(let y=0;y<P;y++){ g[y]=[]; for(let x=0;x<P;x++){ const xc=x-P/2, yc=y-P/2;
+      g[y][x]=Math.sin(TAU*(f/P)*(xc*Math.cos(th)+yc*Math.sin(th))); } } return g; }
+  function gabor(thDeg,f,ph){ const g=[]; const th=thDeg*Math.PI/180; ph=ph||0;
+    for(let y=0;y<P;y++){ g[y]=[]; for(let x=0;x<P;x++){ const xc=x-P/2, yc=y-P/2;
+      g[y][x]=Math.exp(-(xc*xc+yc*yc)/(2*sig*sig))*Math.cos(TAU*(f/P)*(xc*Math.cos(th)+yc*Math.sin(th))-ph); } } return g; }
+  function dotRaw(a,b){ let s=0; for(let y=0;y<P;y++)for(let x=0;x<P;x++) s+=a[y][x]*b[y][x]; return s; }
+  function normOf(a){ let s=0; for(let y=0;y<P;y++)for(let x=0;x<P;x++) s+=a[y][x]*a[y][x]; return Math.sqrt(s)||1; }
+  // phase-invariant energy of a quadrature (cos/sin) Gabor pair — a complex-cell model
+  function energy(stim,thDeg,f){ const gc=gabor(thDeg,f,0), gs=gabor(thDeg,f,Math.PI/2);
+    const sc=normOf(stim), fn=Math.hypot(normOf(gc),normOf(gs));
+    const rc=dotRaw(stim,gc), rs=dotRaw(stim,gs);
+    return Math.hypot(rc,rs)/(sc*fn); }
+  const NB=12;
+  function draw(){
+    bg(cx,W,H);
+    const stim=grating(ang,freq);
+    const resp=[]; for(let b=0;b<NB;b++){ resp.push(energy(stim,b*180/NB,freq)); }
+    let peak=0,bi=0; resp.forEach((r,i)=>{ if(r>peak){peak=r;bi=i;} });
+    // draw stimulus
+    const sx=14, sy=40, cs=6;
+    label(cx,"STIMULUS  θ="+ang+"°",sx,30,"#4B515A");
+    for(let y=0;y<P;y++)for(let x=0;x<P;x++){ const v=(stim[y][x]+1)/2; gcell(cx,sx+x*cs,sy+y*cs,cs,cs,v); }
+    // best-matching gabor
+    const gx=14, gy=200; const G=gabor(bi*180/NB,freq); let gm=0; for(let y=0;y<P;y++)for(let x=0;x<P;x++) gm=Math.max(gm,Math.abs(G[y][x]));
+    label(cx,"BEST FILTER  θ="+Math.round(bi*180/NB)+"°",gx,190,"#6C30D9");
+    for(let y=0;y<P;y++)for(let x=0;x<P;x++){ scell(cx,gx+x*cs,gy+y*cs,cs,cs,G[y][x]/(gm||1)); }
+    // tuning curve
+    const tx=210, ty=60, tw=232, thh=210;
+    label(cx,"ORIENTATION TUNING (filter bank)",tx,44,"#0F7C87");
+    cx.strokeStyle="#e3e5df";cx.beginPath();cx.moveTo(tx,ty+thh);cx.lineTo(tx+tw,ty+thh);cx.stroke();
+    const bw=tw/NB;
+    for(let b=0;b<NB;b++){ const hh=resp[b]/(peak||1)*thh; 
+      cx.fillStyle=b===bi?"#C81C6E":"#cbb8ec"; cx.fillRect(tx+b*bw+3, ty+thh-hh, bw-6, hh); }
+    label(cx,"0°",tx,ty+thh+16,"#8a907f"); label(cx,"90°",tx+tw/2-8,ty+thh+16,"#8a907f"); label(cx,"180°",tx+tw-22,ty+thh+16,"#8a907f");
+    // selectivity
+    const mean=resp.reduce((a,b)=>a+b,0)/NB; const sel=peak/(mean||1e-6);
+    $("#gbBest").textContent=Math.round(bi*180/NB)+"°";
+    $("#gbResp").textContent=fmt(peak,2);
+    $("#gbStat").textContent= sel>2.2?"sharp":"broad";
+  }
+  $("#gbAng").addEventListener("input",e=>{ang=+e.target.value;$("#gbAngo").textContent=ang+"°";draw();});
+  $("#gbFreq").addEventListener("input",e=>{freq=+e.target.value;$("#gbFreqo").textContent=freq;draw();});
+  draw();
+})();
+
+/* ================= ST05 · convolution as infinitely strong prior ================= */
+(function(){
+  const cv=$("#priCv"); if(!cv) return; const cx=cv.getContext("2d"),W=cv.width,H=cv.height;
+  const IN=10, K=3, OUTn=IN-(K-1); let mode=2; // 0 dense,1 local,2 conv
+  const diagCol=["#6C30D9","#C81C6E","#0F7C87"];
+  const info=[
+    ["Fully-connected layer","No prior. Every output connects to every input; each of the "+(OUTn*IN)+" entries is a free weight — maximum flexibility, maximum cost."],
+    ["Locally connected layer","A strong prior: weights are zero outside a small receptive field, so only a band survives. Local — but each position still has its own free weights."],
+    ["Convolution","An infinitely strong prior: local AND shared. Every diagonal of the band is tied to a single value, so the whole layer has just k free weights."]
+  ];
+  function draw(){
+    bg(cx,W,H);
+    const gx=70, gy=40, cw=(W-gx-24)/IN, ch=(H-gy-40)/OUTn;
+    label(cx,"inputs →",gx,30,"#8a907f"); 
+    cx.save();cx.translate(20,gy+OUTn*ch/2);cx.rotate(-Math.PI/2);label(cx,"outputs →",0,0,"#8a907f");cx.restore();
+    let nonzero=0, params=0; const seen={};
+    for(let o=0;o<OUTn;o++)for(let i=0;i<IN;i++){
+      const x=gx+i*cw, y=gy+o*ch; let on=false, col="#eef1ec", d=-1;
+      if(mode===0){ on=true; col="#dcc9f7"; }
+      else { if(i>=o&&i<o+K){ on=true; d=i-o; col= mode===1? "#dcc9f7": diagCol[d]; } }
+      cx.fillStyle=col; cx.fillRect(x+1,y+1,cw-2,ch-2);
+      cx.strokeStyle="#e3e5df";cx.strokeRect(x,y,cw,ch);
+      if(on){ nonzero++; if(mode===2){ if(!(d in seen)){seen[d]=1;params++;} } else params++; }
+    }
+    // legend for conv sharing
+    if(mode===2){ label(cx,"tied diagonals (k shared weights):",gx,gy+OUTn*ch+22,"#8a907f");
+      for(let d=0;d<K;d++){ cx.fillStyle=diagCol[d]; cx.fillRect(gx+210+d*22,gy+OUTn*ch+13,16,10); } }
+    $("#priName").textContent=info[mode][0];
+    $("#priDesc").textContent=info[mode][1];
+    $("#priNonzero").textContent=nonzero;
+    $("#priParams").textContent=params+(mode===2?"  (shared)":"");
+  }
+  chipGroup("#priCtl",["Dense","Locally connected","Convolution"],2,i=>{mode=i;draw();});
+  draw();
+})();
+
+/* ================= ST06 · variants: stride/pad/dilation ================= */
+(function(){
+  const cv=$("#varCv"); if(!cv) return; const cx=cv.getContext("2d"),W=cv.width,H=cv.height;
+  const N=9; let k=3,s=1,p=0,d=1;
+  function draw(){
+    bg(cx,W,H);
+    const keff=d*(k-1)+1; const padded=N+2*p;
+    const out=Math.max(0,Math.floor((padded-keff)/s)+1);
+    const total=padded; const cs=Math.min(30,(W-40)/total); const ix=(W-total*cs)/2, iy=70;
+    label(cx,"INPUT (with padding shown dashed)",20,44,"#4B515A");
+    for(let i=0;i<total;i++){ const x=ix+i*cs; const isPad=(i<p||i>=p+N);
+      cx.fillStyle=isPad?"#f4f5f1":"#e9e4f7"; cx.fillRect(x+1,iy+1,cs-2,cs-2);
+      cx.strokeStyle=isPad?"#d7dad2":"#c9bce8"; cx.setLineDash(isPad?[3,3]:[]); cx.strokeRect(x,iy,cs,cs); cx.setLineDash([]); }
+    // draw kernel footprints for first few output positions
+    const cols=["#6C30D9","#C81C6E","#0F7C87","#B27412"];
+    const show=Math.min(out,4);
+    for(let o=0;o<show;o++){ const start=o*s; const col=cols[o%cols.length];
+      for(let t=0;t<k;t++){ const idx=start+t*d; if(idx>=total)continue; const x=ix+idx*cs;
+        cx.strokeStyle=col;cx.lineWidth=2.2;cx.strokeRect(x+2,iy+2+o*3,cs-4,cs-4-o*0); }
+      // connector to its output cell
+      const oy=210; const ogap=(W-40)/Math.max(out,1); const oxc=20+o*ogap+ogap/2;
+      cx.strokeStyle=col;cx.globalAlpha=.5;cx.lineWidth=1.4;cx.beginPath();
+      cx.moveTo(ix+(start+ (k-1)*d/2)*cs+cs/2, iy+cs+6); cx.lineTo(oxc, oy-8); cx.stroke();cx.globalAlpha=1;
+    }
+    // outputs
+    const oy=210, ogap=(W-40)/Math.max(out,1), ocs=Math.min(26,ogap-6);
+    label(cx,"OUTPUT · "+out+" cells",20,oy-16,"#0F7C87");
+    for(let o=0;o<out;o++){ const x=20+o*ogap+ogap/2-ocs/2; cx.fillStyle= o<show?cols[o%cols.length]:"#cfe0e2";
+      cx.globalAlpha=o<show?.85:1; cx.fillRect(x,oy,ocs,ocs); cx.globalAlpha=1; cx.strokeStyle="#0F7C87";cx.strokeRect(x,oy,ocs,ocs); }
+    label(cx,"effective kernel k_eff = d(k−1)+1 = "+keff,20,270,"#8a907f");
+    let mode; if(s>1)mode="strided ↓"; else if(out===N)mode="same"; else if(p===0)mode="valid"; else mode="custom";
+    $("#varOut").textContent=out+" cells"; $("#varEff").textContent=keff+" wide"; $("#varMode").textContent=mode;
+  }
+  $("#varK").addEventListener("input",e=>{k=+e.target.value;$("#varKo").textContent=k;draw();});
+  $("#varS").addEventListener("input",e=>{s=+e.target.value;$("#varSo").textContent=s;draw();});
+  $("#varP").addEventListener("input",e=>{p=+e.target.value;$("#varPo").textContent=p;draw();});
+  $("#varD").addEventListener("input",e=>{d=+e.target.value;$("#varDo").textContent=d;draw();});
+  draw();
+})();
+
+/* ================= ST07 · separable convolution ================= */
+(function(){
+  const cv=$("#sepCv"); if(!cv) return; const cx=cv.getContext("2d"),W=cv.width,H=cv.height;
+  let k=5;
+  function vec(k){ const v=[],c=(k-1)/2,s=k/5; let sum=0; for(let i=0;i<k;i++){ const z=(i-c)/s; v[i]=Math.exp(-z*z/2); sum+=v[i]; } return v.map(x=>x/sum); }
+  function draw(){
+    bg(cx,W,H);
+    const v=vec(k); let mx=Math.max(...v);
+    const cell=Math.min(26,(W-160)/k); const kx=150, ky=90;
+    // 2D kernel
+    label(cx,"2-D kernel  K = u vᵀ",kx,74,"#6C30D9");
+    for(let r=0;r<k;r++)for(let c=0;c<k;c++){ const val=v[r]*v[c]; gcell(cx,kx+c*cell,ky+r*cell,cell,cell,val/(mx*mx)); }
+    cx.strokeStyle="#d5cbe8";cx.strokeRect(kx,ky,k*cell,k*cell);
+    // row vector (top)
+    label(cx,"row vᵀ",kx,ky-4,"#C81C6E");
+    for(let c=0;c<k;c++){ scell(cx,kx+c*cell,ky-24,cell,16,v[c]/mx); }
+    // column vector (left)
+    label(cx,"col u",kx-70,ky-4,"#0F7C87");
+    for(let r=0;r<k;r++){ scell(cx,kx-40,ky+r*cell,16,cell,v[r]/mx); }
+    // cost bars
+    const naive=k*k, sep=2*k, maxc=k*k;
+    const bx=90, by=ky+k*cell+40, bw=W-160;
+    label(cx,"multiplications per output pixel",bx,by-14,"#8a907f");
+    cx.fillStyle="#e7c9a0";cx.fillRect(bx,by,bw*naive/maxc,18); cx.fillStyle="#B27412";label(cx,"naive k² = "+naive,bx+6,by+13,"#7a5216");
+    cx.fillStyle="#bfe6d8";cx.fillRect(bx,by+26,bw*sep/maxc,18); cx.fillStyle="#0F7C87";label(cx,"separable 2k = "+sep,bx+6,by+39,"#0b5a63");
+    $("#sepNaive").textContent=naive+" ×"; $("#sepSep").textContent=sep+" ×"; $("#sepSpeed").textContent=fmt(k/2,1)+"×";
+  }
+  $("#sepK").addEventListener("input",e=>{k=+e.target.value;$("#sepKo").textContent=k;draw();});
+  draw();
+})();
+
+/* ================= ST08 · random features ================= */
+(function(){
+  const cv=$("#rndCv"); if(!cv) return; const cx=cv.getContext("2d"),W=cv.width,H=cv.height;
+  const N=20; let nf=4, seed=3;
+  const img=[]; { for(let y=0;y<N;y++){ img[y]=[]; for(let x=0;x<N;x++){ let v=0.2;
+    if(x>=10)v=0.65; const dx=x-6,dy=y-13; if(dx*dx+dy*dy<12)v=0.9; if(y>=15&&x<10)v=0.4; img[y][x]=v; } } }
+  function filt(rng){ const f=[]; for(let r=0;r<5;r++){ f[r]=[]; for(let c=0;c<5;c++) f[r][c]=gauss(rng); }
+    // zero-mean
+    let m=0; f.forEach(row=>row.forEach(v=>m+=v)); m/=25; for(let r=0;r<5;r++)for(let c=0;c<5;c++) f[r][c]-=m; return f; }
+  function conv5(f){ const o=N-4, out=[]; for(let r=0;r<o;r++){ out[r]=[]; for(let c=0;c<o;c++){ let s=0;
+    for(let m=0;m<5;m++)for(let n=0;n<5;n++) s+=img[r+m][c+n]*f[m][n]; out[r][c]=s; } } return out; }
+  function draw(){
+    bg(cx,W,H);
+    const rng=mulberry32(seed); const filters=[]; for(let i=0;i<nf;i++) filters.push(filt(rng));
+    // input reference (small, top-left)
+    const rx=14, ry=40, rc=5.4; label(cx,"INPUT",rx,30,"#4B515A");
+    for(let y=0;y<N;y++)for(let x=0;x<N;x++) gcell(cx,rx+x*rc,ry+y*rc,rc,rc,img[y][x]);
+    // filters row + feature maps
+    const startX=150, colW=(W-startX-14)/nf;
+    // edge reference: |Sobel| magnitude, cropped to the 5x5-valid region (N-4)
+    const sobx=[[-1,0,1],[-2,0,2],[-1,0,1]], soby=[[-1,-2,-1],[0,0,0],[1,2,1]];
+    const oR=N-4; const edge=[]; for(let r=0;r<oR;r++){ edge[r]=[]; for(let c=0;c<oR;c++){ let gxv=0,gyv=0;
+      for(let m=0;m<3;m++)for(let n=0;n<3;n++){ const px=img[r+1+m][c+1+n]; gxv+=px*sobx[m][n]; gyv+=px*soby[m][n]; }
+      edge[r][c]=Math.hypot(gxv,gyv); } }
+    function corr(A,B){ let ma=0,mb=0,nn=oR*oR; for(let r=0;r<oR;r++)for(let c=0;c<oR;c++){ ma+=A[r][c];mb+=B[r][c]; } ma/=nn;mb/=nn;
+      let sab=0,sa=0,sb=0; for(let r=0;r<oR;r++)for(let c=0;c<oR;c++){ const da=A[r][c]-ma,db=B[r][c]-mb; sab+=da*db;sa+=da*da;sb+=db*db; }
+      return sab/Math.sqrt((sa*sb)||1); }
+    let corrSum=0;
+    filters.forEach((f,i)=>{ const cxp=startX+i*colW;
+      const fc=Math.min(11,(colW-8)/5); let fm=0; f.forEach(row=>row.forEach(v=>fm=Math.max(fm,Math.abs(v))));
+      label(cx,"filter "+(i+1),cxp,32,"#6C30D9");
+      for(let r=0;r<5;r++)for(let c=0;c<5;c++) scell(cx,cxp+c*fc,40+r*fc,fc,fc,f[r][c]/(fm||1));
+      const om=conv5(f), o=om.length; const am=[]; let mx=0;
+      for(let r=0;r<o;r++){ am[r]=[]; for(let c=0;c<o;c++){ am[r][c]=Math.abs(om[r][c]); mx=Math.max(mx,am[r][c]); } }
+      const oc=Math.min(9,(colW-8)/o), oy=130;
+      label(cx,"map "+(i+1),cxp,124,"#0F7C87");
+      for(let r=0;r<o;r++)for(let c=0;c<o;c++) gcell(cx,cxp+c*oc,oy+r*oc,oc,oc,am[r][c]/(mx||1));
+      corrSum+=Math.abs(corr(am,edge));
+    });
+    const pct=Math.round(clamp(100*corrSum/Math.max(nf,1),0,100));
+    $("#rndEdge").textContent=pct+"%  edge-aligned";
+  }
+  $("#rndN").addEventListener("input",e=>{nf=+e.target.value;$("#rndNo").textContent=nf;draw();});
+  $("#rndNew").addEventListener("click",()=>{seed=Math.floor(Math.random()*99999);draw();});
+  draw();
+})();
+
+/* ================= ST09 · batch normalization ================= */
+(function(){
+  const cv=$("#nrmCv"); if(!cv) return; const cx=cv.getContext("2d"),W=cv.width,H=cv.height;
+  let g=1.0, b=0.0;
+  const raw=[]; { const rng=mulberry32(21); for(let i=0;i<48;i++) raw.push(2.6+2.1*gauss(rng)); }
+  const mu=raw.reduce((a,c)=>a+c,0)/raw.length;
+  const vr=raw.reduce((a,c)=>a+(c-mu)*(c-mu),0)/raw.length; const sd=Math.sqrt(vr+1e-5);
+  function draw(){
+    bg(cx,W,H);
+    const norm=raw.map(x=>(x-mu)/sd); const out=norm.map(x=>g*x+b);
+    function panel(vals,x0,title,col){
+      const w=190, y0=54, h=210; label(cx,title,x0,42,col);
+      cx.strokeStyle="#e3e5df";cx.beginPath();cx.moveTo(x0,y0+h/2);cx.lineTo(x0+w,y0+h/2);cx.stroke();
+      label(cx,"0",x0-2,y0+h/2+14,"#c3c7bd");
+      const sc=18; // px per unit
+      vals.forEach((v,i)=>{ const px=x0+w*((i+0.5)/vals.length); const py=y0+h/2 - v*sc;
+        cx.fillStyle=col; cx.globalAlpha=.6; cx.beginPath();cx.arc(px,clamp(py,y0,y0+h),3,0,TAU);cx.fill();cx.globalAlpha=1; });
+      const m=vals.reduce((a,c)=>a+c,0)/vals.length; const my=y0+h/2-m*sc;
+      cx.strokeStyle=col;cx.setLineDash([5,4]);cx.beginPath();cx.moveTo(x0,my);cx.lineTo(x0+w,my);cx.stroke();cx.setLineDash([]);
+    }
+    panel(raw.map(x=>x-mu),20,"RAW (centred)  μ="+fmt(mu,1)+" σ="+fmt(sd,1),"#B27412");
+    panel(out,250,"AFTER  y = γx̂ + β","#6C30D9");
+    const om=out.reduce((a,c)=>a+c,0)/out.length;
+    const ov=Math.sqrt(out.reduce((a,c)=>a+(c-om)*(c-om),0)/out.length);
+    $("#nrmMean").textContent=fmt(om,2); $("#nrmStd").textContent=fmt(ov,2);
+  }
+  chipGroup("#nrmCtl",["Batch","Layer","Instance","Group"],0,i=>{
+    const d=["Batch norm: statistics over the mini-batch, per channel — the classic choice for CNNs.",
+             "Layer norm: statistics over all features of one example — batch-size independent, common in transformers.",
+             "Instance norm: statistics per example, per channel — popular in style transfer.",
+             "Group norm: statistics over groups of channels per example — robust when batches are tiny."][i];
+    $("#nrmMsg").textContent=d;
+  });
+  $("#nrmG").addEventListener("input",e=>{g=(+e.target.value)/10;$("#nrmGo").textContent=fmt(g,1);draw();});
+  $("#nrmB").addEventListener("input",e=>{b=(+e.target.value)/10;$("#nrmBo").textContent=fmt(b,1);draw();});
+  draw();
+})();
+
+/* ================= ST10 · feature hierarchy ================= */
+(function(){
+  const cv=$("#hierCv"); if(!cv) return; const cx=cv.getContext("2d"),W=cv.width,H=cv.height;
+  let L=1;
+  const layers=[
+    {name:"oriented edges",rf:"3 × 3 px"},
+    {name:"corners & textures",rf:"7 × 7 px"},
+    {name:"object parts",rf:"15 × 15 px"},
+    {name:"whole objects",rf:"31 × 31 px"}
+  ];
+  function icon(l,x,y,sz){
+    cx.save();cx.translate(x,y);
+    cx.strokeStyle="#6C30D9";cx.lineWidth=2.4;cx.fillStyle="rgba(108,48,217,.08)";
+    if(l===0){ for(let i=0;i<3;i++){ cx.beginPath();cx.moveTo(6+i*14,4);cx.lineTo(2+i*14,sz-4);cx.stroke(); } }
+    else if(l===1){ cx.beginPath();cx.moveTo(6,sz-6);cx.lineTo(6,8);cx.lineTo(sz-6,8);cx.stroke();
+      cx.beginPath();cx.moveTo(sz-8,sz-6);cx.lineTo(sz-24,sz-20);cx.stroke(); }
+    else if(l===2){ cx.beginPath();cx.arc(sz*0.35,sz*0.4,7,0,TAU);cx.stroke(); cx.beginPath();cx.arc(sz*0.65,sz*0.4,7,0,TAU);cx.stroke();
+      cx.beginPath();cx.moveTo(sz*0.3,sz*0.7);cx.quadraticCurveTo(sz*0.5,sz*0.85,sz*0.7,sz*0.7);cx.stroke(); }
+    else { cx.beginPath();cx.ellipse(sz/2,sz/2,sz*0.32,sz*0.24,0,0,TAU);cx.fill();cx.stroke();
+      cx.beginPath();cx.moveTo(sz*0.3,sz*0.28);cx.lineTo(sz*0.22,sz*0.12);cx.stroke();
+      cx.beginPath();cx.moveTo(sz*0.7,sz*0.28);cx.lineTo(sz*0.78,sz*0.12);cx.stroke(); }
+    cx.restore();
+  }
+  function draw(){
+    bg(cx,W,H);
+    // layer stack (left)
+    label(cx,"LAYERS",24,34,"#8a907f");
+    for(let i=0;i<4;i++){ const y=54+i*56; const on=(i===L-1);
+      cx.fillStyle=on?"#efe7fb":"#f4f5f1"; cx.fillRect(24,y,150,44);
+      cx.strokeStyle=on?"#6C30D9":"#e3e5df";cx.lineWidth=on?2:1;cx.strokeRect(24,y,150,44);
+      cx.fillStyle=on?"#3a1e75":"#8a907f";cx.font="12px 'IBM Plex Mono',monospace";
+      cx.fillText("L"+(i+1)+" · "+layers[i].name,34,y+27);
+      if(on){ cx.fillStyle="#C81C6E";cx.beginPath();cx.moveTo(178,y+22);cx.lineTo(190,y+16);cx.lineTo(190,y+28);cx.fill(); } }
+    // detail (right)
+    label(cx,"WHAT L"+L+" DETECTS",230,34,"#0F7C87");
+    cx.fillStyle="#fff";cx.strokeStyle="#e3e5df";cx.fillRect(230,50,200,150);cx.strokeRect(230,50,200,150);
+    icon(L-1,268,74,110);
+    // receptive-field square growing
+    const rfpx=[18,42,80,130][L-1];
+    label(cx,"receptive field ≈",230,224,"#8a907f");
+    cx.strokeStyle="#C81C6E";cx.lineWidth=2;cx.strokeRect(360,214-rfpx/2+8,rfpx,rfpx);
+    $("#hierWhat").textContent=layers[L-1].name;
+    $("#hierRF").textContent=layers[L-1].rf;
+  }
+  $("#hierL").addEventListener("input",e=>{L=+e.target.value;$("#hierLo").textContent=L;draw();});
+  draw();
+})();
+
+/* ================= quiz ================= */
+const qs=[
+ {q:"Why do fully-connected layers scale poorly on images?",o:["They can't represent nonlinear functions","Weight count grows with image size and they ignore spatial structure","They only work on 1-D data","They have too few parameters"],a:1,e:"Full connectivity ties every pixel to every unit (huge weight counts) and treats the input as an unordered list, so it can't exploit local structure or translation."},
+ {q:"The convolution used in practice by ML libraries is technically…",o:["Cross-correlation (kernel not flipped)","Matrix inversion","A Fourier transform","Max pooling"],a:0,e:"Libraries skip the kernel flip, so the operation is cross-correlation; since the kernel is learned, the distinction rarely matters."},
+ {q:"Parameter sharing in a convolutional layer means…",o:["Each position has its own weights","The same kernel weights are reused at every position","Weights are set to zero","Inputs share the same value"],a:1,e:"One small kernel is applied everywhere, so a feature learned once is available at all locations and the parameter count drops dramatically."},
+ {q:"Convolution is equivariant to translation, which means…",o:["The output ignores the input entirely","Shifting the input shifts the output the same way","The output is always constant","Pooling is disabled"],a:1,e:"f(shift(x)) = shift(f(x)): a feature detected at one location is detected identically when the input moves."},
+ {q:"Max pooling primarily provides…",o:["More parameters","Approximate invariance to small translations","Exact reconstruction of the input","A larger output than input"],a:1,e:"Summarising a neighbourhood by its max barely changes under small shifts, giving approximate translation invariance (and down-sampling)."},
+ {q:"In the neuroscientific analogy, V1 simple cells correspond most closely to…",o:["Pooling","Convolution with oriented filters","The softmax layer","Batch normalization"],a:1,e:"Simple cells respond to oriented edges at a location — like an oriented convolution filter; complex cells' shift tolerance is like pooling."},
+ {q:"Calling convolution an 'infinitely strong prior' means the prior forces weights to be…",o:["Large and dense","Zero outside the receptive field and shared across positions","Randomly initialised","Equal to the inputs"],a:1,e:"Convolution is a dense layer whose prior assigns zero probability to non-local and non-shared weights, leaving only local, tied weights."},
+ {q:"With input n, kernel k, stride s, padding p, dilation d, the output size is…",o:["n·k","⌊(n+2p−(d(k−1)+1))/s⌋+1","n−k","(n+p)/k"],a:1,e:"The effective kernel is d(k−1)+1; padding adds 2p, stride divides, giving ⌊(n+2p−k_eff)/s⌋+1."},
+ {q:"A locally connected layer differs from convolution because it…",o:["Uses global connections","Has local receptive fields but does NOT share weights","Cannot be trained","Removes the nonlinearity"],a:1,e:"Locally connected layers keep local receptive fields but give every position its own weights — dropping the sharing prior."},
+ {q:"Semantic segmentation is an example of…",o:["A single scalar output","A structured output the size of the input","Unsupervised pretraining","A pooling operation"],a:1,e:"Segmentation labels every pixel, producing an output tensor matching the image's spatial size — a structured output."},
+ {q:"A separable k×k kernel reduces multiplications per pixel from k² to…",o:["k³","2k","k/2","1"],a:1,e:"A separable kernel is an outer product of two 1-D kernels, so convolution becomes two 1-D passes costing 2k instead of k²."},
+ {q:"Batch normalization transforms activations by…",o:["Setting them all to zero","Normalizing to zero-mean/unit-variance, then scaling and shifting by learned γ, β","Removing the mini-batch","Applying max pooling"],a:1,e:"It standardises using batch statistics (x̂=(x−μ)/√(σ²+ε)) then restores flexibility with learned y=γx̂+β, stabilising and speeding training."}
+];
+let score=0,answered=new Set();
+function quizRender(){
+  $("#quiz").innerHTML=qs.map((q,i)=>
+    '<div class="q" data-i="'+i+'"><p class="stem">'+(i+1)+'. '+q.q+'</p>'+
+    q.o.map((o,j)=>'<button class="opt" data-j="'+j+'">'+o+'</button>').join("")+
+    '<div class="exp">'+q.e+'</div></div>').join("");
+  $("#score").textContent=score+" / "+qs.length;
+  $$("#quiz .q").forEach(qel=>{
+    const i=+qel.dataset.i;
+    $$(".opt",qel).forEach(bt=>bt.addEventListener("click",()=>{
+      if(answered.has(i))return; answered.add(i);
+      const j=+bt.dataset.j;
+      if(j===qs[i].a){bt.classList.add("right");score++;}
+      else{bt.classList.add("wrong");$$(".opt",qel)[qs[i].a].classList.add("right");}
+      $(".exp",qel).classList.add("show");
+      $("#score").textContent=score+" / "+qs.length;
+    }));
+  });
+}
+$("#qReset").addEventListener("click",()=>{score=0;answered=new Set();quizRender();annotate($("main"));});
+quizRender();
+
+/* ================= glossary + abbr ================= */
+const ABBR={
+ "CNN":"Convolutional Neural Network — a network that shares small filters across a grid input",
+ "convolution":"Convolution — sliding a kernel over the input and recording weighted sums (a feature map)",
+ "cross-correlation":"Cross-correlation — convolution without flipping the kernel; the operation ML libraries actually use",
+ "kernel":"Kernel — the small array of learned weights slid across the input",
+ "filter":"Filter — another name for a convolution kernel; detects one pattern",
+ "feature map":"Feature map — the output grid produced by applying one filter across the input",
+ "receptive field":"Receptive field — the region of input that influences a given unit",
+ "sparse interactions":"Sparse interactions — each output depends on only a few inputs (a small kernel)",
+ "parameter sharing":"Parameter sharing — reusing the same kernel weights at every position",
+ "equivariance":"Equivariance — shifting the input shifts the output the same way",
+ "invariance":"Invariance — the output is unchanged by a transformation (e.g. small shifts, via pooling)",
+ "pooling":"Pooling — replacing a neighbourhood with a summary (max or average) for down-sampling and shift tolerance",
+ "max pooling":"Max pooling — take the maximum activation in each pooling region",
+ "average pooling":"Average pooling — take the mean activation in each pooling region",
+ "stride":"Stride — how many positions the kernel jumps between applications",
+ "padding":"Padding — border added to the input (often zeros) to control output size",
+ "dilation":"Dilation — spacing between kernel taps, enlarging the receptive field without more weights",
+ "channel":"Channel — co-located measurements at each grid point (e.g. R, G, B)",
+ "Gabor":"Gabor filter — an oriented, localised edge detector matching V1 simple cells and learned first-layer filters",
+ "V1":"V1 — primary visual cortex, where Hubel & Wiesel found oriented, spatially-mapped cells",
+ "simple cell":"Simple cell — a V1 neuron tuned to an oriented edge at a location (≈ convolution)",
+ "complex cell":"Complex cell — a V1 neuron tuned to orientation but tolerant to position (≈ pooling)",
+ "infinitely strong prior":"Infinitely strong prior — a belief that forbids some parameter settings outright; convolution assumes local, shared weights",
+ "locally connected":"Locally connected layer — local receptive fields but unshared weights",
+ "tiled convolution":"Tiled convolution — cycling through a small set of kernels across positions",
+ "separable":"Separable kernel — a 2-D kernel that factors into two 1-D kernels, cutting cost from k² to 2k",
+ "FFT":"Fast Fourier Transform — lets large convolutions run as cheap point-wise multiplication",
+ "batch normalization":"Batch normalization — standardise activations with batch statistics, then rescale by learned γ, β",
+ "structured output":"Structured output — an output tensor as large as the input, e.g. a per-pixel label map",
+ "segmentation":"Semantic segmentation — labelling every pixel with its object class",
+ "ImageNet":"ImageNet — a large labelled image dataset whose challenge (ILSVRC) launched the deep-learning vision era",
+ "AlexNet":"AlexNet — the 2012 CNN that won ImageNet by a wide margin, sparking the deep-learning boom",
+ "Toeplitz":"Toeplitz matrix — a banded matrix with tied diagonals; the effective weight matrix of a convolution"
+};
+const NOABBR=new Set(["convolution","kernel","filter","feature map","pooling","channel","stride","padding"]);
+const aKeys=Object.keys(ABBR).filter(k=>!NOABBR.has(k)).sort((a,b)=>b.length-a.length);
+const aEsc=s=>s.replace(/[.*+?^${}()|[\]\\\-]/g,"\\$&");
+const aPat="(?:^|(?<=[^A-Za-z0-9]))("+aKeys.map(aEsc).join("|")+")(?![A-Za-z0-9])";
+let rxG,rxT;
+try{ rxG=new RegExp(aPat,"g"); rxT=new RegExp(aPat); }
+catch(e){ rxG=new RegExp("\\b("+aKeys.map(aEsc).join("|")+")\\b","g"); rxT=new RegExp("\\b("+aKeys.map(aEsc).join("|")+")\\b"); }
+function annotate(root){
+  if(!root) return;
+  const bad={SCRIPT:1,STYLE:1,ABBR:1,BUTTON:1,INPUT:1,TEXTAREA:1,H1:1,H2:1,TITLE:1,PRE:1,CANVAS:1};
+  const nodes=[], w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null);
+  while(w.nextNode()){
+    const n=w.currentNode;
+    if(!n.nodeValue||!rxT.test(n.nodeValue)) continue;
+    let p=n.parentNode, ok=true;
+    while(p&&p!==root.parentNode){
+      if(p.nodeType===1){
+        if(p.namespaceURI==="http://www.w3.org/2000/svg"||bad[p.tagName]){ok=false;break;}
+        if(p.classList&&p.classList.contains("no-abbr")){ok=false;break;}
+      }
+      p=p.parentNode;
+    }
+    if(ok) nodes.push(n);
+  }
+  nodes.forEach(n=>{
+    const s=n.nodeValue, frag=document.createDocumentFragment();
+    let last=0,m; rxG.lastIndex=0;
+    while((m=rxG.exec(s))!==null){
+      const term=m[1], at=m.index+m[0].length-term.length;
+      if(at>last) frag.appendChild(document.createTextNode(s.slice(last,at)));
+      const a=document.createElement("abbr");
+      a.title=ABBR[term]; a.textContent=term; frag.appendChild(a);
+      last=at+term.length;
+      if(rxG.lastIndex===m.index) rxG.lastIndex++;
+    }
+    if(last<s.length) frag.appendChild(document.createTextNode(s.slice(last)));
+    if(frag.childNodes.length) n.parentNode.replaceChild(frag,n);
+  });
+}
+const pop=document.createElement("div"); pop.className="abbr-pop"; document.body.appendChild(pop);
+let popT;
+document.addEventListener("click",e=>{
+  const t=e.target, a=(t&&t.closest)?t.closest("abbr[title]"):null;
+  if(a){ pop.textContent=a.textContent+" · "+a.title; pop.classList.add("on");
+    clearTimeout(popT); popT=setTimeout(()=>pop.classList.remove("on"),4500); }
+  setTimeout(()=>annotate($("main")),40);
+});
+(function glossary(){
+  const gl=$("#gloss");
+  gl.innerHTML=Object.keys(ABBR).sort((a,b)=>a.toLowerCase().localeCompare(b.toLowerCase()))
+    .map(k=>"<div data-k=\""+(k+" "+ABBR[k]).toLowerCase().replace(/"/g,"")+"\"><b>"+k+"</b> — "+ABBR[k]+"</div>").join("");
+  $("#glossQ").addEventListener("input",e=>{
+    const q=e.target.value.trim().toLowerCase();
+    $$("#gloss div").forEach(d=>{ d.style.display=(!q||d.dataset.k.indexOf(q)>-1)?"":"none"; });
+  });
+})();
+annotate($("main"));
+})();
+</script>
+</body></html>
