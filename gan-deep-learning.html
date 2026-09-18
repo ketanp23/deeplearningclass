@@ -1,0 +1,1572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 11 · Generative Adversarial Networks &amp; the Practical Design Process — GAN Intro, Architecture, DCGAN, Training Hacks, Applications, Performance Metrics, Baselines, Gathering Data, Hyperparameters &amp; Debugging</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700;800&family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root{
+  --paper:#E6E9E3;       /* drafting / graph paper */
+  --panel:#F7F8F3;       /* vellum panel */
+  --ink:#14171B;
+  --ink2:#4B515A;
+  --pri:#6C30D9;         /* violet — regularization / L2 / the penalty */
+  --acc:#C81C6E;         /* rose  — L1 / sparsity */
+  --sec:#0F7C87;         /* teal  — data term / loss / w* */
+  --warn:#B27412;        /* amber — caution / notes */
+  --rule:rgba(20,23,27,.16);
+  --rule-2:rgba(20,23,27,.34);
+  --disp:'Saira Condensed','Arial Narrow',sans-serif;
+  --body:'Spectral',Georgia,serif;
+  --mono:'IBM Plex Mono',ui-monospace,Consolas,monospace;
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:96px}
+body{
+  margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);
+  font-size:16px;line-height:1.62;
+  background-image:
+    linear-gradient(rgba(20,23,27,.045) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(20,23,27,.045) 1px,transparent 1px);
+  background-size:34px 34px;
+}
+h1,h2,h3,h4{font-family:var(--disp);text-transform:uppercase;letter-spacing:.045em;line-height:1.05;margin:0}
+p{margin:0 0 .85em}
+a{color:var(--sec)}
+:focus-visible{outline:2.5px solid var(--pri);outline-offset:3px}
+
+/* ---------- top bar ---------- */
+.hud{position:sticky;top:0;z-index:40;background:rgba(230,233,227,.93);backdrop-filter:blur(7px);
+  border-bottom:1.5px solid var(--rule-2)}
+.hud-in{max-width:1280px;margin:0 auto;padding:9px 20px;display:flex;align-items:center;gap:18px}
+.hud-id{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink2)}
+.hud-id b{color:var(--pri);font-weight:600}
+.hud-title{font-family:var(--disp);font-weight:800;font-size:17px;letter-spacing:.06em;margin-right:auto}
+.hud-prog{display:flex;align-items:center;gap:9px;font-family:var(--mono);font-size:11px;color:var(--ink2)}
+.prog-track{width:130px;height:5px;background:rgba(20,23,27,.14);border-radius:0}
+.prog-fill{height:100%;width:0;background:var(--pri);transition:width .25s}
+
+/* ---------- shell ---------- */
+.shell{max-width:1080px;margin:0 auto;padding:0 20px 90px;display:block}
+.rail{position:fixed;top:0;left:0;bottom:0;width:280px;max-width:82vw;background:var(--panel);border-right:1.5px solid var(--rule-2);
+  padding:20px 22px 30px;z-index:70;overflow-y:auto;transform:translateX(-104%);transition:transform .28s ease;box-shadow:6px 0 22px rgba(20,23,27,.14)}
+.rail.open{transform:none}
+.rail-bg{position:fixed;inset:0;background:rgba(20,23,27,.38);z-index:65;opacity:0;pointer-events:none;transition:opacity .25s}
+.rail-bg.on{opacity:1;pointer-events:auto}
+.rail-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--rule-2)}
+.rail-h{font-family:var(--mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink2)}
+.rail-x{border:1px solid var(--rule-2);background:var(--paper);color:var(--ink);font-family:var(--mono);font-size:13px;line-height:1;
+  width:28px;height:28px;cursor:pointer}
+.rail-x:hover{background:var(--pri);color:var(--panel);border-color:var(--pri)}
+.ham{flex:none;display:flex;flex-direction:column;justify-content:center;gap:5px;width:40px;height:34px;padding:0 9px;
+  border:1px solid var(--rule-2);background:var(--panel);cursor:pointer}
+.ham span{display:block;height:2px;background:var(--ink);transition:transform .25s,opacity .2s}
+.ham:hover span{background:var(--pri)}
+.ham.open span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+.ham.open span:nth-child(2){opacity:0}
+.ham.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+.rail a{display:flex;gap:10px;align-items:baseline;padding:6px 0;text-decoration:none;color:var(--ink2);font-family:var(--disp);
+  font-size:14.5px;letter-spacing:.05em;text-transform:uppercase;border-bottom:1px dotted transparent}
+.rail a span{font-family:var(--mono);font-size:10px;color:var(--pri);min-width:20px}
+.rail a:hover{color:var(--ink)}
+.rail a.on{color:var(--ink);font-weight:700}
+.rail a.on span{background:var(--pri);color:var(--panel);padding:1px 3px}
+
+/* ---------- hero ---------- */
+.hero{padding:34px 0 8px}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--pri)}
+.hero h1{font-size:clamp(38px,6.4vw,74px);font-weight:800;margin:10px 0 6px;letter-spacing:.02em}
+.hero h1 em{font-style:normal;color:var(--pri)}
+.hero-sub{max-width:60ch;color:var(--ink2);font-size:17px}
+.chartbox{margin-top:22px;border:1.5px solid var(--rule-2);background:var(--panel);position:relative;overflow:hidden}
+.chartbox svg{display:block;width:100%;height:auto}
+.chart-cap{display:flex;flex-wrap:wrap;gap:6px 20px;padding:9px 14px;border-top:1px solid var(--rule);font-family:var(--mono);
+  font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2)}
+.wp{cursor:pointer}
+.wp circle{transition:r .18s,fill .18s}
+.wp:hover circle.hit{r:15}
+.wp:hover text{fill:var(--pri)}
+
+/* ---------- sections ---------- */
+.leg{padding:52px 0 8px;border-top:1.5px solid var(--rule-2);margin-top:44px}
+.leg-head{display:flex;gap:14px;align-items:flex-start;margin-bottom:20px}
+.leg-no{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--panel);background:var(--ink);padding:3px 6px;margin-top:5px;white-space:nowrap}
+.leg h2{font-size:clamp(25px,3.6vw,38px);font-weight:800}
+.leg-kicker{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--pri);margin-bottom:4px}
+.lede{font-size:17.5px;max-width:68ch}
+
+.panel{background:var(--panel);border:1.5px solid var(--rule-2);padding:20px 22px;margin:20px 0}
+.panel-t{font-family:var(--disp);font-weight:700;font-size:16px;letter-spacing:.09em;text-transform:uppercase;
+  display:flex;align-items:center;gap:9px;margin-bottom:14px;padding-bottom:9px;border-bottom:1px solid var(--rule)}
+.panel-t::before{content:"";width:9px;height:9px;background:var(--pri);flex:none;transform:rotate(45deg)}
+.panel-t small{margin-left:auto;font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--ink2);text-transform:uppercase;font-weight:400}
+
+.two{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.three{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+
+/* key list */
+ul.kl{list-style:none;padding:0;margin:0}
+ul.kl li{padding:7px 0 7px 20px;border-bottom:1px dotted var(--rule-2);position:relative}
+ul.kl li:last-child{border-bottom:0}
+ul.kl li::before{content:"▸";position:absolute;left:0;color:var(--pri);font-size:12px;top:8px}
+ul.kl b{font-family:var(--disp);font-size:16px;letter-spacing:.04em;text-transform:uppercase}
+.mono{font-family:var(--mono);font-size:12.5px}
+.def{border-left:3px solid var(--pri);padding:2px 0 2px 14px;margin:14px 0;font-size:17px}
+.note{background:rgba(178,116,18,.1);border:1px solid rgba(178,116,18,.45);padding:11px 14px;font-size:14.5px;margin:14px 0}
+.note b{font-family:var(--disp);letter-spacing:.06em;text-transform:uppercase;color:var(--warn)}
+
+/* plain-words (grade-6) explainer */
+.eli{background:rgba(15,124,135,.06);border:1.5px solid rgba(15,124,135,.38);border-left:5px solid var(--sec);
+  padding:14px 18px 13px;margin:18px 0}
+.eli-h{display:flex;align-items:center;gap:9px;font-family:var(--disp);font-weight:700;font-size:14px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--sec);margin-bottom:9px}
+.eli-h::before{content:"";width:11px;height:11px;border-radius:50%;background:var(--sec);box-shadow:0 0 0 3px rgba(15,124,135,.22);flex:none}
+.eli-h small{margin-left:auto;font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;color:var(--ink2);font-weight:400}
+.eli p{font-size:16px;line-height:1.66;margin:0 0 .6em}
+.eli p:last-child{margin-bottom:0}
+.eli b{color:var(--ink);font-weight:600}
+.eli .pic{font-style:italic;color:var(--sec)}
+
+/* display equation */
+.eqn{font-family:var(--mono);font-size:15px;line-height:1.9;background:rgba(108,48,217,.055);border-left:4px solid var(--pri);
+  padding:12px 16px;margin:14px 0;overflow-x:auto;letter-spacing:.01em}
+.eqn .lbl{color:var(--ink2);font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+.eqn b{color:var(--pri)} .eqn .t{color:var(--sec)}
+sub,sup{font-size:.72em;line-height:0}
+
+/* table */
+table.t{width:100%;border-collapse:collapse;font-size:14px}
+table.t th{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;text-align:left;
+  padding:8px 9px;border-bottom:1.5px solid var(--ink);color:var(--ink2)}
+table.t td{padding:8px 9px;border-bottom:1px solid var(--rule);vertical-align:top}
+table.t tr:hover td{background:rgba(108,48,217,.06)}
+table.t td.hl{color:var(--pri);font-weight:600}
+
+/* controls */
+.ctl{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+button.chip{font-family:var(--disp);font-size:14px;letter-spacing:.06em;text-transform:uppercase;padding:6px 13px;
+  background:transparent;border:1.5px solid var(--rule-2);color:var(--ink2);cursor:pointer}
+button.chip:hover{border-color:var(--ink);color:var(--ink)}
+button.chip.on{background:var(--ink);border-color:var(--ink);color:var(--panel)}
+button.chip.mag.on{background:var(--pri);border-color:var(--pri)}
+button.chip.rose.on{background:var(--acc);border-color:var(--acc)}
+.slider{display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:center;margin:12px 0}
+.slider label{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink2);grid-column:1/-1}
+.slider input[type=range]{width:100%;accent-color:var(--pri)}
+.slider output{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--pri);min-width:92px;text-align:right}
+input[type=number]{font-family:var(--mono);font-size:13px;padding:5px 7px;border:1.5px solid var(--rule-2);background:#fff;width:100%}
+.field{margin-bottom:9px}
+.field label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink2);margin-bottom:3px}
+
+/* readouts */
+.reads{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:1.5px;background:var(--rule-2);border:1.5px solid var(--rule-2)}
+.read{background:var(--panel);padding:10px 12px}
+.read i{font-style:normal;display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2)}
+.read b{display:block;font-family:var(--disp);font-size:26px;font-weight:700;letter-spacing:.02em;line-height:1.15}
+.read b s{text-decoration:none;font-size:13px;color:var(--ink2);font-weight:500}
+.read.warn b{color:var(--warn)} .read.bad b{color:var(--acc)} .read.good b{color:var(--sec)} .read.pri b{color:var(--pri)}
+
+/* detail block */
+.detail{margin-top:14px;border-top:1px solid var(--rule);padding-top:12px;min-height:104px}
+.detail h4{font-size:19px;margin-bottom:3px}
+.detail .spec{font-family:var(--mono);font-size:11.5px;color:var(--pri);letter-spacing:.06em;margin-bottom:7px}
+
+/* cards */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:12px}
+.card{border:1.5px solid var(--rule-2);background:var(--panel);padding:14px;cursor:pointer;transition:transform .16s}
+.card:hover{transform:translateY(-3px);border-color:var(--pri)}
+.card h4{font-size:16px;margin-bottom:5px}
+.card .tag{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--pri)}
+.card p{font-size:14px;margin:6px 0 0;color:var(--ink2)}
+.card .fix{display:none;margin-top:9px;padding-top:8px;border-top:1px dotted var(--rule-2);font-size:13.5px}
+.card.open .fix{display:block}
+.card.open{border-color:var(--pri)}
+
+/* quiz */
+.q{border-bottom:1px solid var(--rule);padding:14px 0}
+.q p.stem{font-weight:600;margin-bottom:8px}
+.opt{display:block;width:100%;text-align:left;font-family:var(--body);font-size:14.5px;padding:6px 11px;margin-bottom:5px;
+  background:#fff;border:1.5px solid var(--rule);cursor:pointer;color:var(--ink)}
+.opt:hover{border-color:var(--ink2)}
+.opt.right{border-color:var(--sec);background:rgba(15,124,135,.11);font-weight:600}
+.opt.wrong{border-color:var(--acc);background:rgba(200,28,110,.09);text-decoration:line-through}
+.exp{display:none;font-size:13.5px;color:var(--ink2);border-left:3px solid var(--sec);padding-left:11px;margin-top:7px}
+.exp.show{display:block}
+
+/* misc */
+.stat-row{display:flex;flex-wrap:wrap;gap:10px;font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2)}
+.foot{margin-top:52px;border-top:1.5px solid var(--rule-2);padding-top:16px;font-family:var(--mono);font-size:11px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink2);display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between}
+.badge{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  border:1px solid var(--rule-2);padding:1px 6px;color:var(--ink2)}
+
+/* figures */
+.fig{margin:20px 0;border:1.5px solid var(--rule-2);background:var(--panel);padding:16px 18px 12px}
+.fig svg{display:block;width:100%;height:auto}
+.fig figcaption{margin-top:11px;padding-top:9px;border-top:1px solid var(--rule);font-family:var(--mono);
+  font-size:11px;letter-spacing:.05em;color:var(--ink2);line-height:1.55}
+.fig figcaption b{color:var(--pri);letter-spacing:.14em;margin-right:6px}
+
+/* abbreviations */
+abbr[title]{border-bottom:1px dotted var(--pri);text-decoration:none;cursor:help}
+abbr[title]:hover{background:rgba(108,48,217,.1)}
+.abbr-pop{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--ink);color:var(--panel);
+  font-family:var(--mono);font-size:12.5px;line-height:1.5;padding:9px 15px;z-index:60;max-width:min(92vw,540px);
+  opacity:0;pointer-events:none;transition:opacity .18s;border-left:4px solid var(--pri)}
+.abbr-pop.on{opacity:1}
+
+/* key takeaways */
+.tk{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1.5px;background:var(--rule-2);border:1.5px solid var(--rule-2)}
+.tk-item{background:var(--panel);padding:17px 18px;display:flex;gap:14px;align-items:flex-start}
+.tk-item i{font-style:normal;font-family:var(--disp);font-size:30px;font-weight:800;color:var(--pri);line-height:.9;min-width:36px}
+.tk-item h4{font-size:16.5px;margin-bottom:5px}
+.tk-item p{font-size:14.5px;margin:0;color:var(--ink2);line-height:1.55}
+.headline{border:1.5px solid var(--ink);background:var(--ink);color:var(--paper);padding:20px 22px;margin:20px 0}
+.headline h3{font-size:clamp(19px,2.6vw,26px);color:var(--paper);margin-bottom:8px}
+.headline p{margin:0;font-size:16px;opacity:.92}
+.headline b{color:#C79BF0}
+
+/* glossary */
+.gloss{column-count:2;column-gap:28px}
+.gloss div{break-inside:avoid;padding:5px 0;border-bottom:1px dotted var(--rule);font-size:14px;line-height:1.45}
+.gloss b{font-family:var(--mono);font-size:12px;color:var(--pri);letter-spacing:.03em}
+input.search{font-family:var(--mono);font-size:13px;padding:7px 10px;border:1.5px solid var(--rule-2);background:#fff;width:100%;margin-bottom:14px}
+
+/* code */
+pre.code{background:#14171B;color:#E9EDDD;font-family:var(--mono);font-size:12.5px;line-height:1.65;
+  padding:13px 16px;overflow-x:auto;margin:12px 0;border-left:4px solid var(--pri)}
+pre.code .c{color:#8a967f}
+pre.code .k{color:#C79BF0}
+pre.code .s{color:#7fc8d2}
+
+/* labs */
+.lab{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0}
+.cv{border:1.5px solid var(--rule-2);background:#fff}
+.cv canvas{display:block;width:100%;height:auto}
+.cv-cap{font-family:var(--mono);font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink2);
+  padding:6px 9px;border-top:1px solid var(--rule);background:var(--panel)}
+.bar-row{display:grid;grid-template-columns:130px 1fr 92px;gap:10px;align-items:center;font-family:var(--mono);
+  font-size:11px;letter-spacing:.04em;margin:6px 0}
+.bar-row .tr{background:rgba(20,23,27,.1);height:13px;position:relative}
+.bar-row .fl{position:absolute;left:0;top:0;bottom:0;background:var(--pri);transition:width .18s}
+.bar-row .fl.rose{background:var(--acc)} .bar-row .fl.sec{background:var(--sec)} .bar-row .fl.dim{background:var(--rule-2)}
+.bar-row b{text-align:right;font-weight:600}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink2);margin:8px 0}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:16px;height:3px;display:inline-block}
+.contour-wrap{border:1.5px solid var(--rule-2);background:#fff}
+.contour-wrap svg{display:block;width:100%;height:auto}
+
+@media(max-width:960px){
+  .hud-title{font-size:14px}
+  .two,.three,.lab{grid-template-columns:1fr}
+  .gloss{column-count:1}
+}
+@media(prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+  html{scroll-behavior:auto}
+}
+
+/* in-practice use-case block */
+.uc{background:rgba(108,48,217,.05);border:1.5px solid rgba(108,48,217,.32);border-left:5px solid var(--pri);padding:14px 18px 13px;margin:18px 0}
+.uc-h{display:flex;align-items:center;gap:9px;font-family:var(--disp);font-weight:700;font-size:14px;letter-spacing:.1em;text-transform:uppercase;color:var(--pri);margin-bottom:9px}
+.uc-h::before{content:"";width:11px;height:11px;background:var(--pri);transform:rotate(45deg);flex:none}
+.uc-h .tag{margin-left:auto;font-family:var(--mono);font-size:9px;letter-spacing:.12em;color:var(--pri);font-weight:400;border:1px solid rgba(108,48,217,.4);padding:2px 7px;text-transform:uppercase}
+.uc p{font-size:15px;line-height:1.6;margin:0 0 .55em}
+.uc p:last-child{margin-bottom:0}
+.uc b{color:var(--ink);font-weight:600}
+.uc .case{font-family:var(--mono);font-size:11.5px;line-height:1.5;color:var(--ink2);margin-top:9px;padding-top:9px;border-top:1px dashed var(--rule-2)}
+.uc .case b{color:var(--pri)}
+
+/* ===== shared additions for these volumes ===== */
+.netwrap{border:1.5px solid var(--rule-2);background:#fff}
+.netwrap svg{display:block;width:100%;height:auto}
+.pipe{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-family:var(--disp);font-size:13.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink2);margin:10px 0}
+.pipe b{background:#fff;border:1.5px solid var(--rule-2);padding:6px 11px;color:var(--ink)}
+.pipe span{font-family:var(--mono);color:var(--rule-2)}
+.tvbar{display:grid;grid-template-columns:118px 1fr 62px;gap:10px;align-items:center;font-family:var(--mono);font-size:11px;margin:5px 0}
+.tvbar .tr{background:rgba(20,23,27,.08);height:14px;position:relative}
+.tvbar .fl{position:absolute;left:0;top:0;bottom:0;background:var(--sec);transition:width .18s}
+.tvbar .fl.pri{background:var(--pri)} .tvbar .fl.rose{background:var(--acc)} .tvbar .fl.warn{background:var(--warn)}
+.tvbar b{text-align:right}
+.grid-lab{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+@media(max-width:960px){ .grid-lab{grid-template-columns:1fr} }
+.pill{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;border:1px solid var(--rule-2);padding:2px 7px;color:var(--ink2);margin:2px 4px 2px 0}
+.pill.pri{color:var(--pri);border-color:rgba(108,48,217,.5)}
+.pill.sec{color:var(--sec);border-color:rgba(15,124,135,.5)}
+.pill.rose{color:var(--acc);border-color:rgba(200,28,110,.5)}
+.pill.warn{color:var(--warn);border-color:rgba(178,116,18,.5)}
+</style>
+
+</head>
+<body>
+
+<div class="hud">
+  <div class="hud-in">
+    <button class="ham" id="ham" aria-label="Open toolkit menu" aria-expanded="false" aria-controls="rail"><span></span><span></span><span></span></button>
+    <div class="hud-id">CH <b>11</b></div>
+    <div class="hud-title">GANs &amp; Design Process</div>
+    <div class="hud-prog"><span id="progTxt">0%</span><div class="prog-track"><div class="prog-fill" id="progFill"></div></div></div>
+  </div>
+</div>
+
+<div class="shell">
+
+  <nav class="rail no-abbr" id="rail" aria-label="Toolkit menu">
+    <div class="rail-top"><div class="rail-h">Two halves / 11 stations + summary</div><button class="rail-x" id="railX" aria-label="Close menu">&#10005;</button></div>
+    <a href="#l1"><span>01</span>Introduction to GANs</a>
+    <a href="#l2"><span>02</span>GAN architecture &amp; the minimax game</a>
+    <a href="#l3"><span>03</span>DCGAN</a>
+    <a href="#l4"><span>04</span>GAN hacks &amp; training stability</a>
+    <a href="#l5"><span>05</span>Applications of GANs</a>
+    <a href="#l6"><span>06</span>Performance metrics</a>
+    <a href="#l7"><span>07</span>Default baseline models</a>
+    <a href="#l8"><span>08</span>Whether to gather more data</a>
+    <a href="#l9"><span>09</span>Selecting hyperparameters</a>
+    <a href="#l10"><span>10</span>Debugging strategies</a>
+    <a href="#l11"><span>11</span>The end-to-end design process</a>
+    <a href="#l12"><span>&Sigma;</span>Revision + takeaways</a>
+  </nav>
+  <div class="rail-bg" id="railBg"></div>
+
+  <main>
+
+  <!-- ================= HERO ================= -->
+  <header class="hero">
+    <div class="eyebrow">Deep learning · Chapter 11 · Two networks at war · and how to build any deep model</div>
+    <h1>Forge it,<br>then <em>catch</em> the forger.</h1>
+    <p class="hero-sub">A <b>generative adversarial network</b> pits two networks against each other. A <b>generator</b> starts from random noise and tries to forge samples that look real; a <b>discriminator</b> is a detective trying to tell the generator's fakes from genuine data. Each pushes the other to improve, and at equilibrium the forgeries are so good the detective can only guess. The second half of this chapter turns from one model to <b>method</b>: the practical, repeatable process for building <i>any</i> deep-learning system on a real problem — choosing the right metric, starting from a sensible baseline, deciding when more data is the answer, tuning hyperparameters, and debugging a model that fails silently. Every distribution, gradient check and learning curve below is computed live in your browser.</p>
+
+    <div class="chartbox">
+      <svg viewBox="0 0 960 372" role="img" aria-label="A GAN drawn as a duel: random noise enters a generator that produces fake samples; real samples come from a dataset; both are fed to a discriminator that outputs a real-or-fake probability, whose gradient flows back to train the generator">
+        <rect width="960" height="372" fill="#F7F8F3"/>
+
+        <text x="60" y="40" font-family="IBM Plex Mono,monospace" font-size="11" fill="#4B515A">the adversarial game</text>
+
+        <!-- latent noise z -->
+        <text x="70" y="150" font-family="IBM Plex Mono,monospace" font-size="10" fill="#4B515A">z ~ noise</text>
+        <g fill="#8a907f">
+          <circle cx="80" cy="166" r="3"/><circle cx="96" cy="176" r="3"/><circle cx="76" cy="188" r="3"/><circle cx="94" cy="198" r="3"/><circle cx="82" cy="208" r="3"/>
+        </g>
+
+        <!-- Generator box -->
+        <g>
+          <path d="M150 150 L235 168 L235 232 L150 250 Z" fill="#e6d9fa" stroke="#6C30D9" stroke-width="1.6"/>
+          <text x="180" y="205" font-family="Saira Condensed,sans-serif" font-size="20" font-weight="800" fill="#3a1f6b">G</text>
+        </g>
+        <text x="152" y="140" font-family="IBM Plex Mono,monospace" font-size="10" fill="#6C30D9">generator</text>
+
+        <!-- fake sample -->
+        <clipPath id="fakeClip"><rect x="270" y="168" width="78" height="66" rx="3"/></clipPath>
+        <g clip-path="url(#fakeClip)">
+          <rect x="270" y="168" width="78" height="66" fill="#efe7fb"/>
+          <circle cx="300" cy="196" r="13" fill="#c9a7ef"/>
+          <path d="M270 234 L296 210 L318 226 L348 200 L348 234 Z" fill="#b98fe0"/>
+        </g>
+        <rect x="270" y="168" width="78" height="66" rx="3" fill="none" stroke="#6C30D9" stroke-width="1.2"/>
+        <text x="270" y="250" font-family="IBM Plex Mono,monospace" font-size="10" fill="#6C30D9">x_fake</text>
+
+        <!-- real data -->
+        <clipPath id="realClip"><rect x="270" y="70" width="78" height="66" rx="3"/></clipPath>
+        <g clip-path="url(#realClip)">
+          <rect x="270" y="70" width="78" height="66" fill="#dcecec"/>
+          <circle cx="300" cy="98" r="13" fill="#6fb9c0"/>
+          <path d="M270 136 L296 112 L318 128 L348 102 L348 136 Z" fill="#5aa7ae"/>
+        </g>
+        <rect x="270" y="70" width="78" height="66" rx="3" fill="none" stroke="#0F7C87" stroke-width="1.2"/>
+        <text x="270" y="64" font-family="IBM Plex Mono,monospace" font-size="10" fill="#0F7C87">x_real · dataset</text>
+
+        <!-- Discriminator box -->
+        <g>
+          <path d="M470 120 L560 138 L560 234 L470 252 Z" fill="#f7dbe8" stroke="#C81C6E" stroke-width="1.6"/>
+          <text x="500" y="196" font-family="Saira Condensed,sans-serif" font-size="20" font-weight="800" fill="#7a1146">D</text>
+        </g>
+        <text x="472" y="112" font-family="IBM Plex Mono,monospace" font-size="10" fill="#C81C6E">discriminator</text>
+
+        <!-- output verdict bars -->
+        <g font-family="IBM Plex Mono,monospace" font-size="11">
+          <rect x="610" y="150" width="150" height="18" rx="2" fill="#dcecec"/><rect x="610" y="150" width="118" height="18" rx="2" fill="#0F7C87"/><text x="616" y="164" fill="#fff">P(real) · 0.79</text>
+          <rect x="610" y="178" width="150" height="18" rx="2" fill="#f7dbe8"/><rect x="610" y="178" width="32" height="18" rx="2" fill="#C81C6E"/><text x="616" y="192" fill="#7a1146">P(fake) · 0.21</text>
+        </g>
+
+        <!-- arrows -->
+        <g stroke="#b9bfb2" stroke-width="1.5" fill="none" marker-end="url(#arg)">
+          <path d="M110 190 L146 196"/>            <!-- z -> G -->
+          <path d="M236 200 L266 201"/>            <!-- G -> fake -->
+          <path d="M350 108 C 410 120, 430 150, 466 168"/>  <!-- real -> D -->
+          <path d="M350 200 C 410 196, 430 190, 466 190"/>  <!-- fake -> D -->
+          <path d="M562 176 L606 168"/>            <!-- D -> verdict -->
+        </g>
+
+        <!-- feedback gradient to G -->
+        <path d="M560 250 C 420 320, 250 320, 192 254" fill="none" stroke="#6C30D9" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arg)"/>
+        <text x="360" y="336" font-family="IBM Plex Mono,monospace" font-size="10" fill="#6C30D9">gradient trains G to fool D</text>
+
+        <!-- animated dot z -> G -> D -->
+        <path id="ganPath" d="M110 190 L200 200 L300 201 L500 190" fill="none" stroke="none"/>
+        <circle r="4.5" fill="#6C30D9"><animateMotion dur="4.5s" repeatCount="indefinite"><mpath href="#ganPath"/></animateMotion></circle>
+
+        <defs><marker id="arg" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#8a907f"/></marker></defs>
+
+        <text x="610" y="226" font-family="IBM Plex Mono,monospace" font-size="10" fill="#0F7C87">at equilibrium D → 0.5 · fakes indistinguishable</text>
+      </svg>
+      <div class="chart-cap">
+        <span>◆ 11 stations · 11 live labs</span>
+        <span>◆ GAN · DCGAN · metrics · baselines · tuning · debugging</span>
+        <span>◆ every distribution &amp; gradient check in-browser</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= 01 INTRO GAN ================= -->
+  <section class="leg" id="l1">
+    <div class="leg-head"><div class="leg-no">01</div><div>
+      <div class="leg-kicker">Role · significance · the big idea · §20 intro</div><h2>Introduction to GANs</h2></div></div>
+
+    <p class="lede">Most networks we've met are <b>discriminative</b>: given an input, predict a label. A <b>generative</b> model does something harder — it learns the <i>distribution</i> of the data well enough to produce brand-new samples that could have come from it. Generative adversarial networks (Goodfellow et al., 2014) learn this distribution through a <b>game</b>. A <b>generator</b> G maps random noise <b>z</b> to a synthetic sample; a <b>discriminator</b> D tries to classify samples as real (from the dataset) or fake (from G). D is trained to catch fakes; G is trained to fool D. As the detective sharpens, the forger must improve, and vice versa — until, at the ideal equilibrium, G's samples match the true data distribution and D can do no better than a coin flip. No explicit likelihood is ever written down; the two networks supply each other's training signal.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> imagine an art forger and a detective. The forger paints fakes and slips them into a gallery of real paintings; the detective's job is to spot which are fake. Every time the detective catches a fake, the forger learns what gave it away and paints better. Every time a fake sneaks through, the detective studies harder.</p>
+      <p>Round after round, the fakes get so good that the detective is basically guessing. At that point the forger has learned to paint like the real artists — which is exactly what we wanted: a machine that can make new, realistic examples on its own.</p>
+    </div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panel-t">Discriminative vs generative</div>
+        <ul class="kl">
+          <li><b>Discriminative — </b>models P(label | input); answers "what is this?" — classifiers, detectors, taggers.</li>
+          <li><b>Generative — </b>models the data itself; answers "what does a plausible example look like?" — and can sample new ones.</li>
+          <li><b>GAN's twist — </b>learns to generate <i>without</i> an explicit density, by beating a learned critic instead of maximising a likelihood.</li>
+          <li><b>Why it's powerful — </b>the critic is adaptive, so the training signal keeps getting sharper as the generator improves.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <div class="panel-t">The two players <small>Opposite goals</small></div>
+        <p style="font-size:14.5px"><b>Generator G(z)</b> — turns a random latent vector into a sample; wants D to label its output "real". Never sees real data directly, only D's feedback.</p>
+        <p style="font-size:14.5px"><b>Discriminator D(x)</b> — outputs the probability that x is real; wants to assign 1 to real data and 0 to fakes.</p>
+        <p style="font-size:14.5px;color:var(--ink2)"><b>Equilibrium</b> — when p<sub>gen</sub> = p<sub>data</sub>, the best D can output is 0.5 everywhere: the fakes are indistinguishable.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Watch the forger close the gap <small>Slide training forward · the fakes drift onto the real data · the detective loses its edge</small></div>
+      <div class="grid-lab">
+        <div class="cv"><canvas id="ganCv" width="460" height="330"></canvas><div class="cv-cap">Teal = real data; rose = the generator's samples. Early on the two clouds are far apart and the discriminator (dashed line) separates them easily. As training advances, the fakes migrate onto the real distribution and the discriminator's accuracy falls toward 50%.</div></div>
+        <div>
+          <div class="slider"><div class="field"><label>Training progress</label><input type="range" id="ganTrain" min="0" max="100" value="10"></div><output id="ganTraino" class="mono">10%</output></div>
+          <div class="reads">
+            <div class="read pri"><i>Fakes vs real overlap</i><b id="ganOv">—</b></div>
+            <div class="read bad"><i>Discriminator accuracy</i><b id="ganDacc">—</b></div>
+            <div class="read good"><i>Verdict</i><b id="ganVerdict" style="font-size:15px">—</b></div>
+          </div>
+          <p style="font-size:13px;color:var(--ink2);margin-top:8px" id="ganMsg">When the clouds overlap, no boundary can separate them — the discriminator drops to chance and the generator has effectively matched the data distribution. That coin-flip point is the goal of GAN training.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 02 GAN ARCHITECTURE ================= -->
+  <section class="leg" id="l2">
+    <div class="leg-head"><div class="leg-no">02</div><div>
+      <div class="leg-kicker">The minimax game · §20.1</div><h2>GAN Architecture &amp; the Minimax Game</h2></div></div>
+
+    <p class="lede">Formally, GAN training is a two-player <b>minimax game</b> over a single value function. The discriminator maximises its ability to tell real from fake; the generator minimises that same quantity. Training alternates: hold G fixed and take a gradient step to improve D, then hold D fixed and take a step to improve G. For a fixed generator, the <b>optimal discriminator</b> is D*(x) = p<sub>data</sub>(x) / (p<sub>data</sub>(x) + p<sub>gen</sub>(x)). Plugging that back in shows the generator is effectively minimising the <b>Jensen–Shannon divergence</b> between the generated and real distributions — minimised (to the value −log 4) exactly when the two distributions coincide. In practice we replace G's saturating loss with the "non-saturating" version (maximise log D(G(z))) so the generator gets strong gradients early, when its samples are still easy to catch.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> it's a tug-of-war with one rope. The detective pulls to make its "real vs fake" score as high as possible; the forger pulls to drag that same score down. They take turns tugging. If you froze the forger and let the detective play perfectly, its best rule would be "how much of the stuff here is real versus fake at this spot?"</p>
+      <p>The forger wins the game not by any trick but by making its fakes land in exactly the same places as the real data. When the two piles sit perfectly on top of each other, the detective's best guess everywhere is "50/50" — game over, forgery perfected.</p>
+    </div>
+
+    <div class="eqn"><span class="lbl">The GAN value function and the optimal discriminator</span><br>
+      min<sub>G</sub> max<sub>D</sub> &nbsp; <b>E</b><sub>x~data</sub>[log D(x)] + <span class="t">E<sub>z~noise</sub></span>[log(1 − D(G(z)))]<br>
+      D*(x) = <b>p<sub>data</sub>(x)</b> / ( p<sub>data</sub>(x) + <span class="t">p<sub>gen</sub>(x)</span> ) &nbsp;&nbsp;<span class="lbl">→ G minimises JS divergence; optimum at p<sub>gen</sub> = p<sub>data</sub></span></div>
+
+    <div class="panel">
+      <div class="panel-t">Match the distribution <small>Move the generator's mean &amp; spread · or let G train · watch D* flatten to ½</small></div>
+      <div class="grid-lab">
+        <div class="cv"><canvas id="mmCv" width="460" height="330"></canvas><div class="cv-cap">Teal curve: the real density p<sub>data</sub>. Violet curve: the generator's density p<sub>gen</sub>. Rose curve: the optimal discriminator D*(x). As p<sub>gen</sub> aligns with p<sub>data</sub>, D* flattens to 0.5 everywhere and the value function reaches its equilibrium −log 4 ≈ −1.386.</div></div>
+        <div>
+          <div class="ctl" style="margin:2px 0 8px"><button class="chip mag" id="mmStep">▶ Train G one step</button><button class="chip" id="mmReset">↺ Reset</button></div>
+          <div class="slider"><div class="field"><label>Generator mean μ_g</label><input type="range" id="mmMu" min="-3" max="3" step="0.1" value="-2"></div><output id="mmMuo" class="mono">-2.0</output></div>
+          <div class="slider"><div class="field"><label>Generator spread σ_g</label><input type="range" id="mmSig" min="0.4" max="2.5" step="0.05" value="0.6"></div><output id="mmSigo" class="mono">0.60</output></div>
+          <div class="reads">
+            <div class="read pri"><i>Value V(D*,G)</i><b id="mmV">—</b></div>
+            <div class="read warn"><i>JS divergence</i><b id="mmJS">—</b></div>
+            <div class="read bad"><i>D* accuracy</i><b id="mmDacc">—</b></div>
+          </div>
+          <p style="font-size:13px;color:var(--ink2);margin-top:8px" id="mmMsg">Nudge the generator's mean and spread toward the real curve — or press "train" to let it step automatically. The closer the match, the flatter D* and the lower the divergence, bottoming out at the equilibrium value.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">Non-saturating loss</span></div>
+      <p>Early in training G's samples are obviously fake, so log(1 − D(G(z))) saturates and G gets almost no gradient. The standard fix is to train G to <b>maximise log D(G(z))</b> instead — the same fixed point, but strong gradients when G needs them most.</p>
+    </div>
+  </section>
+
+  <!-- ================= 03 DCGAN ================= -->
+  <section class="leg" id="l3">
+    <div class="leg-head"><div class="leg-no">03</div><div>
+      <div class="leg-kicker">Making GANs work on images · §20.2</div><h2>DCGAN</h2></div></div>
+
+    <p class="lede">The original GAN used fully-connected nets and was notoriously unstable. The <b>Deep Convolutional GAN (DCGAN)</b> (Radford et al., 2015) was the recipe that made image GANs reliable, and its architectural guidelines are still a sensible default. The generator turns a latent vector into an image with a stack of <b>fractionally-strided (transposed) convolutions</b> that <i>upsample</i> — the spatial size grows layer by layer while the channel depth shrinks, ending in a full-resolution image. The discriminator is a mirror-image CNN that downsamples to a single real/fake score. The key rules: replace pooling with strided convolutions, use <b>batch normalisation</b> in both nets, drop fully-connected hidden layers, use <b>ReLU</b> in the generator (with <b>tanh</b> at the output) and <b>LeakyReLU</b> in the discriminator.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> a normal CNN shrinks a big picture down to a label. The generator does the opposite — it starts from a tiny bundle of numbers and <b>grows</b> it, step by step, into a full picture: 4×4, then 8×8, then 16×16, and so on, adding detail each time while using fewer "colour channels" as it goes.</p>
+      <p>DCGAN is basically a checklist that keeps this growing-a-picture process from falling apart: use the right building blocks, keep the numbers well-behaved with batch-norm, and pick the right squashing functions. Follow the checklist and the training stops exploding.</p>
+    </div>
+
+    <div class="eqn"><span class="lbl">Transposed-convolution output size (the upsampling step)</span><br>
+      out = <b>(in − 1)·stride</b> − 2·pad + <span class="t">kernel</span> &nbsp;&nbsp;<span class="lbl">stride &gt; 1 grows the feature map instead of shrinking it</span></div>
+
+    <div class="panel">
+      <div class="panel-t">Grow an image from noise <small>Step through the generator · spatial size up · depth down</small></div>
+      <div class="grid-lab">
+        <div class="cv"><canvas id="dcCv" width="460" height="330"></canvas><div class="cv-cap">The generator as a stack of slabs. A 100-D latent vector is projected and reshaped, then each transposed-conv layer doubles the width and height while halving the channels, ending in a 3-channel image. Step through to watch it grow.</div></div>
+        <div>
+          <div class="ctl" style="margin:2px 0 10px"><button class="chip mag" id="dcStep">▶ Next layer</button><button class="chip" id="dcPlay">⏵ Auto</button><button class="chip" id="dcReset">↺ Reset</button></div>
+          <div class="reads">
+            <div class="read pri"><i>Current resolution</i><b id="dcRes">—</b></div>
+            <div class="read"><i>Channels</i><b id="dcCh">—</b></div>
+            <div class="read good"><i>Layer</i><b id="dcLayer" style="font-size:15px">—</b></div>
+          </div>
+          <p style="font-size:13px;color:var(--ink2);margin-top:8px" id="dcMsg">Each layer trades depth for resolution: the representation gets wider and taller but shallower, until it reaches image size. The discriminator runs this stack in reverse.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">DCGAN guidelines <small>The defaults that made image GANs stable</small></div>
+      <table class="t">
+        <tr><th>Rule</th><th>Generator</th><th>Discriminator</th></tr>
+        <tr><td class="hl">Resizing</td><td>Fractionally-strided (transposed) conv</td><td>Strided conv (no pooling)</td></tr>
+        <tr><td class="hl">Normalisation</td><td>Batch norm (except output)</td><td>Batch norm (except input)</td></tr>
+        <tr><td class="hl">Hidden activation</td><td>ReLU</td><td>LeakyReLU</td></tr>
+        <tr><td class="hl">Output activation</td><td>tanh</td><td>sigmoid (real/fake)</td></tr>
+        <tr><td class="hl">Fully-connected layers</td><td>None (all-conv)</td><td>None (all-conv)</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= 04 GAN HACKS ================= -->
+  <section class="leg" id="l4">
+    <div class="leg-head"><div class="leg-no">04</div><div>
+      <div class="leg-kicker">Taming an unstable game · §20.3</div><h2>GAN Hacks &amp; Training Stability</h2></div></div>
+
+    <p class="lede">GANs are famously hard to train because they optimise a <b>moving target</b>: as G changes, D's job changes, and the game can oscillate or collapse instead of converging. The most infamous failure is <b>mode collapse</b> — the generator discovers one or a few outputs that reliably fool D and produces only those, ignoring the rest of the data distribution (all faces, but the same face). A large toolbox of practical "hacks" keeps training on the rails: <b>one-sided label smoothing</b> (label real examples 0.9 not 1.0), <b>feature matching</b> and <b>minibatch discrimination</b> (so the generator is rewarded for variety), keeping G and D roughly <b>balanced</b> in strength, careful learning-rate choices (often different rates for G and D), and using architectures like DCGAN. None of these are guarantees — they are empirical rules that make a difficult optimisation more reliable.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> the forger might find one "perfect fake" that always fools the detective and just make that same painting over and over. It wins the game but it's useless — it only knows how to paint one thing. That's mode collapse.</p>
+      <p>The hacks are little rules that stop this: reward the forger for <b>variety</b>, don't let the detective get too strong too fast, and keep both of them improving at a similar pace. Flip the fixes on below and watch the fakes spread out to cover every kind of real example instead of piling onto one.</p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Mode collapse &amp; its fixes <small>Toggle the hacks · watch the generator cover all the modes</small></div>
+      <div class="ctl" id="hackCtl" style="margin-bottom:12px"></div>
+      <div class="grid-lab">
+        <div class="cv"><canvas id="hackCv" width="460" height="330"></canvas><div class="cv-cap">Teal rings mark the eight real data modes. Rose dots are the generator's samples. With no fixes the samples collapse onto one or two modes; turn on the hacks and they spread out to cover the whole distribution.</div></div>
+        <div>
+          <div class="reads">
+            <div class="read pri"><i>Modes covered</i><b id="hackModes">—</b></div>
+            <div class="read bad"><i>Mode collapse?</i><b id="hackCollapse" style="font-size:16px">—</b></div>
+            <div class="read good"><i>Stability score</i><b id="hackStab">—</b></div>
+          </div>
+          <p style="font-size:13px;color:var(--ink2);margin-top:8px" id="hackMsg">Each fix nudges the generator toward variety and keeps the two networks balanced. Together they turn a collapsed, one-note generator into one that samples the full data distribution.</p>
+          <div class="note" style="margin-top:12px"><b>Note</b> — these are empirical aids, not proofs of convergence. Later objectives (e.g. Wasserstein GAN) target the instability more directly.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 05 APPLICATIONS ================= -->
+  <section class="leg" id="l5">
+    <div class="leg-head"><div class="leg-no">05</div><div>
+      <div class="leg-kicker">What GANs are good for · §20.4</div><h2>Applications of GANs</h2></div></div>
+
+    <p class="lede">Because a trained generator is a smooth map from a latent space to realistic samples, GANs unlocked a wide range of applications. They synthesise photorealistic <b>images</b> and faces; perform <b>image-to-image translation</b> (sketch→photo, day→night, maps↔satellite via pix2pix and CycleGAN); do <b>super-resolution</b> (SRGAN) and inpainting; enable <b>text-to-image</b> synthesis; generate <b>data augmentation</b> and privacy-preserving synthetic datasets for medicine; support <b>style transfer</b> and creative tools; and even help with <b>anomaly detection</b> by modelling "normal" data. A characteristic and useful property is that the latent space is <b>continuous and semantically meaningful</b>: walking a straight line between two latent vectors morphs one realistic sample smoothly into another, and directions in that space can correspond to interpretable attributes.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> once the forger is good, its "bundle of numbers" input works like a set of dials. Turn the dials a little and the picture changes a little; slide smoothly from one setting to another and the picture morphs smoothly — a young face into an old one, a sketch into a photo. That smooth "space of settings" is what makes GANs so useful for editing and creating.</p>
+      <p>People use this to turn sketches into photos, make blurry images sharp, invent training data when real data is scarce, and build creative tools. Drag the slider below to walk between two settings and watch one sample melt into another.</p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Walk the latent space <small>Interpolate between two latent vectors · one sample morphs into another</small></div>
+      <div class="grid-lab">
+        <div class="cv"><canvas id="latCv" width="460" height="330"></canvas><div class="cv-cap">Two latent vectors z₀ and z₁ define two synthetic samples. The slider linearly interpolates between them; because the generator is a smooth map, the sample morphs continuously rather than jumping — evidence the latent space is well-behaved.</div></div>
+        <div>
+          <div class="slider"><div class="field"><label>Interpolation α  (z = (1−α)z₀ + α z₁)</label><input type="range" id="latA" min="0" max="100" value="0"></div><output id="latAo" class="mono">0.00</output></div>
+          <div class="ctl" style="margin:6px 0 10px"><button class="chip mag" id="latNew">⟳ New endpoints</button></div>
+          <div class="reads">
+            <div class="read pri"><i>α</i><b id="latAlpha">—</b></div>
+            <div class="read good"><i>Nearer to</i><b id="latNear" style="font-size:15px">—</b></div>
+          </div>
+          <p style="font-size:13px;color:var(--ink2);margin-top:8px" id="latMsg">The morph is smooth all the way across — no sudden jumps. A jagged, discontinuous walk would signal a poorly-behaved generator or a collapsed latent space.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Where GANs are used</div>
+      <div class="tk">
+        <div class="tk-item"><i>◈</i><div><h4>Image &amp; face synthesis</h4>
+          <p>Photorealistic faces, objects and scenes from noise; the basis of "this person does not exist" style demos and creative generators.</p></div></div>
+        <div class="tk-item"><i>⇄</i><div><h4>Image-to-image translation</h4>
+          <p>Sketch→photo, day→night, maps↔satellite, segmentation↔image — pix2pix (paired) and CycleGAN (unpaired).</p></div></div>
+        <div class="tk-item"><i>⤢</i><div><h4>Super-resolution &amp; inpainting</h4>
+          <p>Sharpening low-res images (SRGAN) and filling in missing regions with plausible content.</p></div></div>
+        <div class="tk-item"><i>❖</i><div><h4>Data augmentation</h4>
+          <p>Synthetic training examples and privacy-preserving datasets, especially where real data is scarce or sensitive (e.g. medical imaging).</p></div></div>
+        <div class="tk-item"><i>✦</i><div><h4>Text-to-image &amp; style</h4>
+          <p>Generating images from descriptions and transferring artistic style between images.</p></div></div>
+        <div class="tk-item"><i>◉</i><div><h4>Anomaly detection</h4>
+          <p>Learn what "normal" looks like; samples the generator can't reproduce well are flagged as anomalies.</p></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 06 PERFORMANCE METRICS ================= -->
+  <section class="leg" id="l6">
+    <div class="leg-head"><div class="leg-no">06</div><div>
+      <div class="leg-kicker">Design process · pick the right target · §11.1</div><h2>Performance Metrics</h2></div></div>
+
+    <p class="lede">The first step of any practical deep-learning project is to decide <b>what to measure</b> — and it is more subtle than "accuracy". The metric must reflect the real goal, and the goal sets a target level of performance worth aiming for. When classes are imbalanced or errors have unequal costs, accuracy misleads: a detector for a rare disease can be 99% accurate by always saying "healthy". <b>Precision</b> (of the things you flagged, how many were right) and <b>recall</b> (of the things you should have flagged, how many you caught) trade off against each other as you move the decision threshold, and the <b>F-score</b> summarises the balance. Some tasks care about <b>coverage</b> (letting the model abstain when unsure), others about ranking (AUC). Choosing and justifying this metric up front is what keeps the rest of the project honest.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> imagine testing for a rare illness that only 1 in 100 people have. A lazy test that always says "you're fine" is right 99% of the time — but it never catches a single sick person. "Percent correct" hid a useless test.</p>
+      <p>So we ask two better questions instead. <b>Precision:</b> when the test rings the alarm, how often is it truly right? <b>Recall:</b> of all the people who are actually sick, how many did it catch? Move the alarm's sensitivity below and watch these two trade off — make it jumpier and you catch more sick people but cry wolf more often.</p>
+    </div>
+
+    <div class="eqn"><span class="lbl">Precision, recall, and their harmonic mean</span><br>
+      precision = <b>TP</b> / (TP + <span class="t">FP</span>) &nbsp;·&nbsp; recall = <b>TP</b> / (TP + FN) &nbsp;·&nbsp; F1 = 2 · <span class="t">(P·R)/(P+R)</span> &nbsp;&nbsp;<span class="lbl">accuracy can lie when classes are imbalanced</span></div>
+
+    <div class="panel">
+      <div class="panel-t">Move the threshold <small>Slide the decision boundary · watch precision &amp; recall trade off</small></div>
+      <div class="grid-lab">
+        <div class="cv"><canvas id="metCv" width="460" height="330"></canvas><div class="cv-cap">Two score distributions: negatives (teal) and positives (rose). The violet line is the decision threshold — everything to its right is predicted positive. The confusion counts and the metrics update as you slide it; watch precision and recall move in opposite directions.</div></div>
+        <div>
+          <div class="slider"><div class="field"><label>Decision threshold</label><input type="range" id="metTh" min="0" max="100" value="50"></div><output id="metTho" class="mono">0.50</output></div>
+          <div class="slider"><div class="field"><label>Positive class rate (imbalance)</label><input type="range" id="metBal" min="5" max="50" value="30"></div><output id="metBalo" class="mono">30%</output></div>
+          <div class="reads">
+            <div class="read pri"><i>Precision</i><b id="metPrec">—</b></div>
+            <div class="read good"><i>Recall</i><b id="metRec">—</b></div>
+            <div class="read warn"><i>F1 · accuracy</i><b id="metF1" style="font-size:17px">—</b></div>
+          </div>
+          <p style="font-size:13px;color:var(--ink2);margin-top:8px" id="metMsg">Push the threshold right and you flag fewer things: precision rises but recall falls. Push it left and you catch more but raise false alarms. The best operating point depends on the real cost of each kind of error.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 07 DEFAULT BASELINE MODELS ================= -->
+  <section class="leg" id="l7">
+    <div class="leg-head"><div class="leg-no">07</div><div>
+      <div class="leg-kicker">Design process · start simple · §11.2</div><h2>Default Baseline Models</h2></div></div>
+
+    <p class="lede">Once you have a metric, resist the urge to invent something clever. Establish a <b>sensible baseline</b> first, driven by the data type. For <b>fixed-size vectors</b>, a feed-forward net with ReLU units is the default; for <b>images or grid data</b>, a convolutional network; for <b>sequences</b>, a gated recurrent net (LSTM/GRU) or, increasingly, an attention model. Reach for reliable defaults everywhere else too: <b>SGD with momentum</b> or <b>Adam</b> as the optimiser, <b>batch normalisation</b> to stabilise training, and <b>early stopping</b> as free, effective regularisation — adding dropout if you see overfitting. Also ask whether deep learning is even needed: if a simple model or a known algorithm solves it, use that. The baseline exists to be measured against, so you can tell whether later complexity actually helps.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> before building a fancy race car, build a plain, reliable car that runs. It tells you the road, the rules, and how fast "normal" is. Then, every fancy part you add, you can check: did it actually make things better than the plain car?</p>
+      <p>There are well-tested "plain cars" for each kind of data: a straightforward net for tables, a picture-net for images, a memory-net for sequences — plus safe default settings for the engine. Start there, measure, and only add complexity that earns its keep.</p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Pick a baseline <small>Choose your data type · get a sensible default recipe</small></div>
+      <div class="ctl" id="baseCtl"></div>
+      <div class="grid-lab">
+        <div class="cv"><canvas id="baseCv" width="460" height="330"></canvas><div class="cv-cap">A quick sketch of the recommended baseline architecture for the selected data type, from input on the left to the task output on the right.</div></div>
+        <div>
+          <div class="detail">
+            <h4 id="baseName">—</h4>
+            <div class="spec" id="baseSpec">—</div>
+            <p style="font-size:14px" id="baseDesc">—</p>
+          </div>
+          <div class="reads" style="margin-top:10px">
+            <div class="read pri"><i>Model</i><b id="baseModel" style="font-size:14px">—</b></div>
+            <div class="read good"><i>Optimiser</i><b id="baseOpt" style="font-size:14px">—</b></div>
+            <div class="read warn"><i>Regularise</i><b id="baseReg" style="font-size:14px">—</b></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">Do you even need deep learning?</span></div>
+      <p>If the problem is small, linear, or already solved by a standard algorithm, a simpler model is faster to build, easier to debug, and often good enough. Deep learning earns its complexity mainly on large, high-dimensional, perceptual problems.</p>
+    </div>
+  </section>
+
+  <!-- ================= 08 GATHER MORE DATA ================= -->
+  <section class="leg" id="l8">
+    <div class="leg-head"><div class="leg-no">08</div><div>
+      <div class="leg-kicker">Design process · the data question · §11.3</div><h2>Determining Whether to Gather More Data</h2></div></div>
+
+    <p class="lede">After a baseline runs, a common instinct is "get more data" — but that is not always the right move, and data is expensive. The disciplined procedure reads the two error numbers. If <b>training error is high</b>, the model isn't even fitting what it has: more data won't help — increase capacity, tune hyperparameters, or fix the optimisation first. If <b>training error is low but test error is high</b> (a large generalisation <b>gap</b>), the model overfits: <i>now</i> gathering more data is a strong option, alongside regularisation. When you do gather data, think in terms of the <b>learning curve</b> — plot performance against dataset size to estimate how much more you'd need to hit the target, since gains usually diminish. Doubling the data for a 1% improvement may not be worth it.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> if a student can't even do the practice problems they've already seen, giving them <b>more</b> practice problems won't help — they need better teaching or more effort first. But if they ace the practice yet flunk the real test, that's a sign they memorised too narrowly, and seeing more varied examples really would help.</p>
+      <p>So read the two scores. Bad on practice (training) → don't gather data, fix the model. Good on practice but bad on the test → more data is worth considering. Slide the knobs below and the recommended move updates.</p>
+    </div>
+
+    <div class="eqn"><span class="lbl">The decision rests on two numbers</span><br>
+      train error high → <b>underfitting</b>: bigger model / better tuning &nbsp;·&nbsp; large <span class="t">gap</span> (test ≫ train) → <b>overfitting</b>: more data / regularise</div>
+
+    <div class="panel">
+      <div class="panel-t">Read the learning curves <small>Set dataset size &amp; model capacity · get the recommended action</small></div>
+      <div class="grid-lab">
+        <div class="cv"><canvas id="dataCv" width="460" height="330"></canvas><div class="cv-cap">Training error (violet) and test error (rose) as functions of dataset size. Your current size is marked. The gap between the curves is the generalisation gap; the recommended action follows from where the two errors sit.</div></div>
+        <div>
+          <div class="slider"><div class="field"><label>Dataset size</label><input type="range" id="dataN" min="0" max="100" value="25"></div><output id="dataNo" class="mono">—</output></div>
+          <div class="slider"><div class="field"><label>Model capacity</label><input type="range" id="dataCap" min="1" max="5" step="1" value="3"></div><output id="dataCapo" class="mono">3</output></div>
+          <div class="reads">
+            <div class="read pri"><i>Training error</i><b id="dataTrain">—</b></div>
+            <div class="read bad"><i>Test error</i><b id="dataTest">—</b></div>
+            <div class="read good"><i>Gen. gap</i><b id="dataGap">—</b></div>
+          </div>
+          <div class="headline" style="margin-top:12px;padding:12px 14px"><p style="font-size:14px" id="dataAct">—</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 09 HYPERPARAMETERS ================= -->
+  <section class="leg" id="l9">
+    <div class="leg-head"><div class="leg-no">09</div><div>
+      <div class="leg-kicker">Design process · tuning · §11.4</div><h2>Selecting Hyperparameters</h2></div></div>
+
+    <p class="lede">Deep models have many knobs — learning rate, capacity, regularisation strength, batch size — and setting them is much of the practical work. The single most important is the <b>learning rate</b>: too low and training crawls or gets stuck; too high and the loss oscillates or diverges; the useful range is a valley in between, giving a characteristic <b>U-shaped</b> curve of validation error against learning rate. Two broad strategies exist. <b>Manual</b> tuning uses understanding: most hyperparameters control <b>effective capacity</b>, and the goal is to sit near the bottom of the U — reduce error by adding capacity or lowering regularisation when underfitting, and the reverse when overfitting. <b>Automatic</b> search — grid or random — removes the guesswork; notably, <b>random search</b> usually beats grid search because it samples the few important dimensions far more densely.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> the learning rate is how big a step the model takes while learning. Tiny steps mean you crawl and might never arrive; giant steps mean you leap right over the goal and bounce around. There's a "just right" middle — a valley — and most tuning is about finding it.</p>
+      <p>You can hunt by hand (nudge a knob, check the score, repeat) or let the computer try many settings. A neat trick: trying <b>random</b> settings usually beats a neat evenly-spaced grid, because it explores the knob that actually matters far more thoroughly.</p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Find the valley <small>Slide the learning rate · see underfit ↔ diverge · compare grid vs random search</small></div>
+      <div class="grid-lab">
+        <div class="cv"><canvas id="hpCv" width="460" height="330"></canvas><div class="cv-cap">The U-curve of validation loss versus learning rate (log scale). Your current rate is marked and classified. The dots show where a grid search versus a random search would sample — random search hits the useful valley more often.</div></div>
+        <div>
+          <div class="slider"><div class="field"><label>Learning rate (log₁₀)</label><input type="range" id="hpLr" min="-5" max="0" step="0.05" value="-3"></div><output id="hpLro" class="mono">1e-3</output></div>
+          <div class="ctl" id="hpModeCtl" style="margin:6px 0 10px"></div>
+          <div class="reads">
+            <div class="read warn"><i>Regime</i><b id="hpReg" style="font-size:15px">—</b></div>
+            <div class="read pri"><i>Validation loss</i><b id="hpVal">—</b></div>
+            <div class="read good"><i>Best sample found</i><b id="hpBest">—</b></div>
+          </div>
+          <p style="font-size:13px;color:var(--ink2);margin-top:8px" id="hpMsg">Sit near the bottom of the U. Too far left and the model barely learns (underfits); too far right and it diverges. Toggle the search strategy to see why random sampling finds the valley with fewer trials.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 10 DEBUGGING ================= -->
+  <section class="leg" id="l10">
+    <div class="leg-head"><div class="leg-no">10</div><div>
+      <div class="leg-kicker">Design process · when it fails silently · §11.5</div><h2>Debugging Strategies</h2></div></div>
+
+    <p class="lede">Deep models fail in a uniquely frustrating way: they rarely crash, they just <b>quietly perform badly</b>, and you usually don't know the right answer to compare against. A handful of strategies cut through the fog. <b>Visualise the model in action</b> — look at its actual outputs, not just the loss. <b>Visualise the worst mistakes</b> to find systematic errors (e.g. mislabelled data). Use a <b>software test</b>: can the model <b>overfit a tiny dataset</b>? If it can't drive training loss to near zero on ten examples, there's a bug, not a data problem. <b>Monitor histograms</b> of activations and gradients to catch dead units or saturation. And the classic: a <b>gradient check</b> — compare your analytic back-prop gradients against a numerical finite-difference estimate; if they disagree, the gradient code is wrong. Choosing a good <b>step size ε</b> for that check matters: too large and the approximation is crude, too small and floating-point round-off dominates.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> a broken deep model usually doesn't beep or stop — it just gives so-so answers, and you often can't tell if it's a little wrong or badly wrong. So you use detective tricks: actually look at what it produces, stare at its <b>worst</b> mistakes, and check whether it can memorise a tiny handful of examples (if it can't, something's genuinely broken).</p>
+      <p>One favourite: check the math. You can estimate a slope two ways — the formula the code uses, and a "wiggle it a tiny bit and see how much it changes" estimate. If the two don't match, there's a bug. But the wiggle size matters: too big is inaccurate, too tiny and the computer's rounding wrecks it. Find the sweet spot below.</p>
+    </div>
+
+    <div class="eqn"><span class="lbl">Gradient check: analytic vs central finite difference</span><br>
+      f′(x) ≈ <b>( f(x+ε) − f(x−ε) )</b> / <span class="t">2ε</span> &nbsp;·&nbsp; rel. error = |analytic − numeric| / (|analytic| + |numeric|) &nbsp;&nbsp;<span class="lbl">should be tiny for a correct gradient</span></div>
+
+    <div class="panel">
+      <div class="panel-t">Gradient check <small>Pick a function · slide ε · find where the estimate is most accurate</small></div>
+      <div class="ctl" id="gcCtl"></div>
+      <div class="grid-lab">
+        <div class="cv"><canvas id="gcCv" width="460" height="330"></canvas><div class="cv-cap">Relative error between the analytic derivative and the finite-difference estimate, versus the step size ε (log–log). The characteristic V shows two error sources: truncation dominates for large ε (right), floating-point round-off for tiny ε (left). Your current ε is marked.</div></div>
+        <div>
+          <div class="slider"><div class="field"><label>Step size ε (log₁₀)</label><input type="range" id="gcEps" min="-11" max="0" step="0.1" value="-4"></div><output id="gcEpso" class="mono">1e-4</output></div>
+          <div class="reads">
+            <div class="read pri"><i>Analytic f′(x)</i><b id="gcAna">—</b></div>
+            <div class="read"><i>Numeric estimate</i><b id="gcNum">—</b></div>
+            <div class="read good"><i>Relative error</i><b id="gcErr">—</b></div>
+          </div>
+          <p style="font-size:13px;color:var(--ink2);margin-top:8px" id="gcMsg">There's a sweet spot around ε ≈ 1e-6 to 1e-4 where the estimate is most accurate. A correct gradient matches to many digits there; a persistent mismatch anywhere means a bug in the back-prop code.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">A debugging checklist</div>
+      <ul class="kl">
+        <li><b>Overfit a tiny set — </b>if training loss won't approach zero on a handful of examples, it's a bug, not the data.</li>
+        <li><b>Visualise outputs &amp; worst errors — </b>read the model's actual predictions; systematic mistakes often reveal bad labels or preprocessing.</li>
+        <li><b>Watch activation/gradient histograms — </b>spot dead ReLUs, saturated sigmoids, or exploding/vanishing gradients.</li>
+        <li><b>Gradient check — </b>compare analytic and numerical derivatives on a small model with a well-chosen ε.</li>
+        <li><b>Compare train vs test error — </b>separates optimisation problems (high train error) from generalisation problems (high gap).</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ================= 11 DESIGN PROCESS ================= -->
+  <section class="leg" id="l11">
+    <div class="leg-head"><div class="leg-no">11</div><div>
+      <div class="leg-kicker">Putting it together · §11 overview</div><h2>The End-to-End Design Process</h2></div></div>
+
+    <p class="lede">The pieces combine into a single, repeatable recipe for attacking a real problem. <b>(1) Determine goals</b> — choose the performance metric and a target level tied to the actual application. <b>(2) Build an end-to-end pipeline fast</b> — get a sensible baseline running and measured as soon as possible, however rough. <b>(3) Instrument &amp; diagnose</b> — read train vs test error, visualise outputs and worst mistakes, and identify the real bottleneck rather than guessing. <b>(4) Iterate with targeted changes</b> — based on the diagnosis, make one change at a time: gather more data if the gap is large, tune hyperparameters (learning rate first) if it underfits, or change the algorithm if the approach is wrong — then remeasure. Most of the value comes not from a clever architecture but from disciplined, evidence-driven iteration.</p>
+
+    <div class="eli">
+      <div class="eli-h">In plain words <small>GRADE 6</small></div>
+      <p><span class="pic">The picture:</span> it's a loop, not a straight line. First decide how you'll keep score. Then build the simplest thing that works end-to-end, and measure it. Then look closely to find the one thing holding it back. Then fix that one thing and measure again. Repeat.</p>
+      <p>The secret isn't a magic model — it's this honest cycle: measure, find the real problem, make one change, measure again. Click through the steps and try a few "what's wrong?" scenarios below to see which action each one calls for.</p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Walk the process &amp; diagnose <small>Step through the four stages · then pick a symptom and see the right move</small></div>
+      <div class="grid-lab">
+        <div class="cv"><canvas id="procCv" width="460" height="330"></canvas><div class="cv-cap">The four-stage loop: set goals, build a baseline, instrument &amp; diagnose, iterate. Step through it; the highlighted stage advances and the loop closes back to iteration.</div></div>
+        <div>
+          <div class="ctl" style="margin:2px 0 10px"><button class="chip mag" id="procStep">▶ Next stage</button><button class="chip" id="procReset">↺ Reset</button></div>
+          <div style="font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink2);margin-bottom:6px">Diagnose a symptom</div>
+          <div class="ctl" id="procDiagCtl"></div>
+          <div class="detail" style="margin-top:6px;min-height:70px">
+            <div class="spec" id="procSympSpec">—</div>
+            <p style="font-size:14px" id="procAct">Pick a symptom to see the recommended next action.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="uc">
+      <div class="uc-h">In practice <span class="tag">One change at a time</span></div>
+      <p>Change several things at once and you can't tell what helped. Isolate each intervention, remeasure against the baseline, and keep the metric fixed. Discipline beats cleverness on real problems.</p>
+    </div>
+  </section>
+
+  <!-- ================= Σ REVISION ================= -->
+  <section class="leg" id="l12">
+    <div class="leg-head"><div class="leg-no">&Sigma;</div><div>
+      <div class="leg-kicker">Consolidate · then ship it</div><h2>Revision, Quiz &amp; Key Takeaways</h2></div></div>
+
+    <p class="lede">Twelve checks across both halves of the chapter — from the adversarial idea, the minimax game and the optimal discriminator, through DCGAN, training instability and mode collapse, and the applications of GANs; then the practical design process: choosing a metric, default baselines, the data-gathering decision, hyperparameter selection, debugging strategies, and the end-to-end loop. Pick an answer to see the reasoning.</p>
+
+    <div class="panel">
+      <div class="panel-t">Self-test <small><span id="score">0 / 12</span> correct</small></div>
+      <div id="quiz"></div>
+      <div class="ctl" style="margin-top:14px"><button class="chip mag" id="qReset">Reset quiz</button></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Likely long-answer questions</div>
+      <ul class="kl">
+        <li>Explain the GAN framework as a two-player game. What are the roles of the generator and discriminator, and what does convergence mean?</li>
+        <li>State the GAN value function and derive the optimal discriminator D*(x). Show that the generator minimises the Jensen–Shannon divergence.</li>
+        <li>Why is the non-saturating generator loss (maximise log D(G(z))) preferred over the original in practice?</li>
+        <li>Describe the DCGAN architecture and list its key guidelines (strided convs, batch norm, ReLU/LeakyReLU, tanh output, no fully-connected layers).</li>
+        <li>What is mode collapse, and how do label smoothing, feature matching and network balancing help stabilise GAN training?</li>
+        <li>Give four applications of GANs and explain the significance of a smooth, semantically meaningful latent space.</li>
+        <li>Why can accuracy be a misleading performance metric? Define precision, recall and the F-score, and describe their trade-off with the decision threshold.</li>
+        <li>What are sensible default baseline models and optimisers for vector, image and sequence data, and why start with a baseline at all?</li>
+        <li>Describe the procedure for deciding whether to gather more data, using training error, test error and the learning curve.</li>
+        <li>Explain the U-shaped relationship between learning rate and validation error, and why random search often outperforms grid search.</li>
+        <li>List five debugging strategies for deep networks, and explain the gradient-check test including the role of the step size ε.</li>
+        <li>Outline the four-stage end-to-end design process and explain why changing one thing at a time matters.</li>
+      </ul>
+    </div>
+
+    <div class="panel">
+      <div class="panel-t">Glossary <small>Click any dotted term anywhere on the page</small></div>
+      <input class="search" id="glossQ" type="search" placeholder="Filter terms — try 'recall' or 'mode collapse'">
+      <div class="gloss no-abbr" id="gloss"></div>
+    </div>
+
+    <div class="headline">
+      <h3>If you remember only one thing</h3>
+      <p>This chapter has two lessons. First, a <b>GAN learns to generate by competition</b>: a generator forges samples from noise while a discriminator learns to catch them, and at equilibrium the fakes match the real distribution and the critic is reduced to guessing — with DCGAN's recipe and a bag of stabilising hacks making it work in practice. Second, building deep models is <b>a disciplined process, not a lucky guess</b>: choose a metric that reflects the goal, start from a sensible baseline, read train-versus-test error to decide whether to gather data or tune, treat the learning rate as the key knob, debug by making the model overfit a tiny set and gradient-checking, and iterate one change at a time. Method beats cleverness.</p>
+    </div>
+
+    <div class="tk">
+      <div class="tk-item"><i>01</i><div><h4>Generate by competition</h4>
+        <p>Two networks — a forger and a detective — train each other until the fakes are indistinguishable from real data.</p></div></div>
+      <div class="tk-item"><i>02</i><div><h4>A minimax game</h4>
+        <p>D maximises, G minimises one value function; the optimal D is a density ratio and G minimises JS divergence.</p></div></div>
+      <div class="tk-item"><i>03</i><div><h4>DCGAN made it stable</h4>
+        <p>All-conv up/down-sampling, batch norm, ReLU/LeakyReLU, tanh output — the default recipe for image GANs.</p></div></div>
+      <div class="tk-item"><i>04</i><div><h4>Beware mode collapse</h4>
+        <p>Generators can collapse to one output; variety-encouraging hacks and balance keep training healthy.</p></div></div>
+      <div class="tk-item"><i>05</i><div><h4>Pick the right metric</h4>
+        <p>Accuracy lies under imbalance; precision, recall and F-score trade off with the threshold to fit the real goal.</p></div></div>
+      <div class="tk-item"><i>06</i><div><h4>Start from a baseline</h4>
+        <p>Vector→feed-forward, image→CNN, sequence→LSTM/GRU; Adam/SGD, batch norm, early stopping as defaults.</p></div></div>
+      <div class="tk-item"><i>07</i><div><h4>Diagnose before gathering data</h4>
+        <p>High train error → fix the model; large train–test gap → gather data or regularise. Read the learning curve.</p></div></div>
+      <div class="tk-item"><i>08</i><div><h4>Tune, debug, iterate</h4>
+        <p>Learning rate first (the U-curve), random over grid search; overfit a tiny set and gradient-check; change one thing at a time.</p></div></div>
+    </div>
+
+    <div class="foot no-abbr">
+      <span>CHAPTER 11 · GANS &amp; THE DESIGN PROCESS</span>
+      <span>11 STATIONS · 11 LIVE LABS · EVERYTHING COMPUTED IN YOUR BROWSER</span>
+      <span>MEASURE, DIAGNOSE, ITERATE — BEFORE THE EXAM</span>
+    </div>
+  </section>
+
+  </main>
+</div>
+<script>
+(function(){
+"use strict";
+const $=(s,r)=>(r||document).querySelector(s), $$=(s,r)=>[...(r||document).querySelectorAll(s)];
+const fmt=(n,d)=>Number(n).toFixed(d===undefined?1:d);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const TAU=Math.PI*2;
+
+/* ---------- rail + progress ---------- */
+const legs=$$(".leg"), links=$$("#rail a");
+function onScroll(){
+  const y=window.scrollY+140; let idx=0;
+  legs.forEach((l,i)=>{ if(l.offsetTop<=y) idx=i; });
+  links.forEach((a,i)=>a.classList.toggle("on",i===idx));
+  const d=document.documentElement;
+  const p=Math.min(100,Math.max(0,(window.scrollY/(d.scrollHeight-d.clientHeight))*100));
+  $("#progFill").style.width=p+"%"; $("#progTxt").textContent=Math.round(p)+"%";
+}
+window.addEventListener("scroll",onScroll,{passive:true}); onScroll();
+
+const railEl=$("#rail"),hamEl=$("#ham"),railBg=$("#railBg");
+function railSet(open){
+  railEl.classList.toggle("open",open);
+  hamEl.classList.toggle("open",open);
+  railBg.classList.toggle("on",open);
+  hamEl.setAttribute("aria-expanded",open?"true":"false");
+  document.body.style.overflow=open?"hidden":"";
+}
+hamEl.addEventListener("click",()=>railSet(!railEl.classList.contains("open")));
+$("#railX").addEventListener("click",()=>railSet(false));
+railBg.addEventListener("click",()=>railSet(false));
+document.addEventListener("keydown",e=>{if(e.key==="Escape")railSet(false);});
+links.forEach(aEl=>aEl.addEventListener("click",()=>railSet(false)));
+
+/* seeded RNG */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function gauss(rng){let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(TAU*v);}
+
+/* chip group helper */
+function chipGroup(host,labels,initial,onPick){
+  const el=$(host); if(!el) return []; el.innerHTML="";
+  const btns=labels.map((lb,i)=>{
+    const b=document.createElement("button");
+    b.className="chip"+(i===initial?" mag on":""); b.textContent=lb;
+    b.addEventListener("click",()=>{btns.forEach(x=>x.classList.remove("on"));b.classList.add("on");onPick(i);});
+    el.appendChild(b); return b;
+  });
+  return btns;
+}
+
+/* drawing helpers */
+function gcell(cx,x,y,w,h,v){ v=clamp(v,0,1); const g=Math.round(20+v*220); cx.fillStyle="rgb("+g+","+g+","+g+")"; cx.fillRect(x,y,w,h); }
+function scell(cx,x,y,w,h,v){ // v in [-1,1]: + violet, - teal
+  v=clamp(v,-1,1); let col;
+  if(v>=0) col="rgba(108,48,217,"+(0.12+0.8*v)+")";
+  else col="rgba(15,124,135,"+(0.12+0.8*(-v))+")";
+  cx.fillStyle="#fff";cx.fillRect(x,y,w,h); cx.fillStyle=col;cx.fillRect(x,y,w,h);
+}
+function label(cx,t,x,y,col){ cx.fillStyle=col||"#8a907f"; cx.font="10px 'IBM Plex Mono',monospace"; cx.fillText(t,x,y); }
+function bg(cx,W,H){ cx.clearRect(0,0,W,H); cx.fillStyle="#fff"; cx.fillRect(0,0,W,H); }
+
+/* helper: gaussian pdf */
+function npdf(x,mu,sig){ const z=(x-mu)/sig; return Math.exp(-0.5*z*z)/(sig*Math.sqrt(TAU)); }
+/* helper: standard-normal CDF via erf approximation */
+function ncdf(x,mu,sig){ const z=(x-mu)/(sig*Math.SQRT2);
+  const t=1/(1+0.3275911*Math.abs(z));
+  const y=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-z*z);
+  const erf=z>=0?y:-y; return 0.5*(1+erf); }
+
+/* ================= ST01 · spot the fake ================= */
+(function(){
+  const cv=$("#ganCv"); if(!cv) return; const cx=cv.getContext("2d"),W=cv.width,H=cv.height;
+  let t=0.10; const rng=mulberry32(5);
+  const realC={x:330,y:165}, fake0={x:120,y:225}; const NP=44;
+  const rp=[],fp=[]; for(let i=0;i<NP;i++){ rp.push([gauss(rng)*26,gauss(rng)*26]); fp.push([gauss(rng)*26,gauss(rng)*26]); }
+  const maxSep=Math.hypot(realC.x-fake0.x, realC.y-fake0.y);
+  function draw(){
+    bg(cx,W,H);
+    const fc={x:fake0.x+(realC.x-fake0.x)*t, y:fake0.y+(realC.y-fake0.y)*t};
+    const sep=Math.hypot(realC.x-fc.x, realC.y-fc.y);
+    label(cx,"DATA SPACE  ·  teal = real   rose = generated",20,28,"#4B515A");
+    // discriminator boundary (perp bisector) when separated
+    if(sep>14){ const mx=(realC.x+fc.x)/2, my=(realC.y+fc.y)/2; const dx=realC.x-fc.x, dy=realC.y-fc.y;
+      const len=Math.hypot(dx,dy); const px=-dy/len, py=dx/len; const L=260;
+      cx.strokeStyle="#6C30D9";cx.lineWidth=2;cx.setLineDash([6,4]);
+      cx.beginPath();cx.moveTo(mx-px*L,my-py*L);cx.lineTo(mx+px*L,my+py*L);cx.stroke();cx.setLineDash([]);
+      label(cx,"D boundary",mx+px*L*0.5+6,my+py*L*0.5,"#6C30D9"); }
+    // points
+    for(let i=0;i<NP;i++){ cx.fillStyle="#0F7C87";cx.globalAlpha=.8;cx.beginPath();cx.arc(realC.x+rp[i][0],realC.y+rp[i][1],3,0,TAU);cx.fill();
+      cx.fillStyle="#C81C6E";cx.beginPath();cx.arc(fc.x+fp[i][0],fc.y+fp[i][1],3,0,TAU);cx.fill();cx.globalAlpha=1; }
+    const dacc=50+45*(sep/maxSep); const overlap=clamp(1-sep/maxSep,0,1)*100;
+    const verdict= dacc>85? "easy to catch" : (dacc>62? "improving" : "indistinguishable");
+    $("#ganOv").textContent=Math.round(overlap)+"%";
+    $("#ganDacc").textContent=Math.round(dacc)+"%";
+    $("#ganVerdict").textContent=verdict;
+    $("#ganVerdict").parentElement.className="read "+(dacc>85?"bad":(dacc>62?"warn":"good"));
+  }
+  $("#ganTrain").addEventListener("input",e=>{t=+e.target.value/100;$("#ganTraino").textContent=e.target.value+"%";draw();});
+  draw();
+})();
+
+/* ================= ST02 · minimax density game ================= */
+(function(){
+  const cv=$("#mmCv"); if(!cv) return; const cx=cv.getContext("2d"),W=cv.width,H=cv.height;
+  const muR=1.0, sigR=1.0; let mug=-2, sigg=0.6;
+  const X0=-6,X1=6,STEP=0.06;
+  function draw(){
+    bg(cx,W,H);
+    const ox=40, oy=30, pw=W-60, ph=250;
+    cx.strokeStyle="#e3e5df";cx.beginPath();cx.moveTo(ox,oy);cx.lineTo(ox,oy+ph);cx.lineTo(ox+pw,oy+ph);cx.stroke();
+    const sx=x=> ox+((x-X0)/(X1-X0))*pw;
+    let pkPdf=0; for(let x=X0;x<=X1;x+=STEP){ pkPdf=Math.max(pkPdf,npdf(x,muR,sigR),npdf(x,mug,sigg)); }
+    // curves
+    const curve=(fn,col,wid)=>{ cx.strokeStyle=col;cx.lineWidth=wid;cx.beginPath();let first=true;
+      for(let x=X0;x<=X1;x+=STEP){ const y=oy+ph-(fn(x))*ph; const X=sx(x); if(first){cx.moveTo(X,y);first=false;}else cx.lineTo(X,y);} cx.stroke(); };
+    // real & gen scaled to peak
+    curve(x=>npdf(x,muR,sigR)/pkPdf*0.9, "#0F7C87",2.4);
+    curve(x=>npdf(x,mug,sigg)/pkPdf*0.9, "#6C30D9",2.4);
+    // D*(x) in [0,1] scaled to full height, plus 0.5 guide
+    cx.strokeStyle="rgba(178,116,18,.5)";cx.setLineDash([4,3]);cx.beginPath();cx.moveTo(ox,oy+ph-0.5*ph);cx.lineTo(ox+pw,oy+ph-0.5*ph);cx.stroke();cx.setLineDash([]);
+    label(cx,"D*=0.5",ox+pw-52,oy+ph-0.5*ph-4,"#B27412");
+    curve(x=>{ const pr=npdf(x,muR,sigR), pg=npdf(x,mug,sigg); return (pr/(pr+pg+1e-12)); }, "#C81C6E",2);
+    label(cx,"p_data",sx(muR)-6,oy+ph-0.9*ph-6,"#0F7C87");
+    label(cx,"p_gen",sx(mug)-6,oy+8,"#6C30D9");
+    label(cx,"D*(x)",ox+6,oy+12,"#C81C6E");
+    // metrics via numeric integration
+    let V=0, js=0, accCorrect=0;
+    for(let x=X0;x<=X1;x+=STEP){ const pr=npdf(x,muR,sigR), pg=npdf(x,mug,sigg); const D=pr/(pr+pg+1e-12); const m=(pr+pg)/2;
+      V += (pr*Math.log(D+1e-12) + pg*Math.log(1-D+1e-12))*STEP;
+      if(pr>1e-9) js += 0.5*pr*Math.log(pr/(m+1e-12))*STEP;
+      if(pg>1e-9) js += 0.5*pg*Math.log(pg/(m+1e-12))*STEP;
+      accCorrect += (0.5*pr*(D>=0.5?1:0) + 0.5*pg*(D<0.5?1:0))*STEP; }
+    $("#mmV").textContent=fmt(V,3);
+    $("#mmJS").textContent=fmt(js/Math.log(2),3);
+    $("#mmDacc").textContent=Math.round(accCorrect*100)+"%";
+  }
+  $("#mmMu").addEventListener("input",e=>{mug=+e.target.value;$("#mmMuo").textContent=fmt(mug,1);draw();});
+  $("#mmSig").addEventListener("input",e=>{sigg=+e.target.value;$("#mmSigo").textContent=fmt(sigg,2);draw();});
+  $("#mmStep").addEventListener("click",()=>{ mug+=(muR-mug)*0.25; sigg+=(sigR-sigg)*0.25;
+    $("#mmMu").value=mug; $("#mmMuo").textContent=fmt(mug,1); $("#mmSig").value=sigg; $("#mmSigo").textContent=fmt(sigg,2); draw(); });
+  $("#mmReset").addEventListener("click",()=>{ mug=-2;sigg=0.6; $("#mmMu").value=mug;$("#mmMuo").textContent="-2.0";$("#mmSig").value=sigg;$("#mmSigo").textContent="0.60"; draw(); });
+  draw();
+})();
+
+/* ================= ST03 · DCGAN generator ================= */
+(function(){
+  const cv=$("#dcCv"); if(!cv) return; const cx=cv.getContext("2d"),W=cv.width,H=cv.height;
+  const layers=[
+    {res:4,ch:512,name:"project & reshape → 4×4×512"},
+    {res:8,ch:256,name:"deconv ↑ → 8×8×256"},
+    {res:16,ch:128,name:"deconv ↑ → 16×16×128"},
+    {res:32,ch:64,name:"deconv ↑ → 32×32×64"},
+    {res:64,ch:3,name:"deconv ↑ → 64×64×3 · tanh"}
+  ];
+  let shown=1, timer=null;
+  function draw(){
+    bg(cx,W,H);
+    label(cx,"GENERATOR: latent z → image  (size up · depth down)",20,26,"#6C30D9");
+    // latent z
+    label(cx,"z·100",22,150,"#4B515A");
+    cx.fillStyle="#8a907f"; for(let i=0;i<6;i++){ cx.beginPath();cx.arc(30, 165+i*11, 2.6,0,TAU);cx.fill(); }
+    let x=64;
+    for(let l=0;l<layers.length;l++){ const L=layers[l]; const on=l<shown;
+      const face=20+L.res*1.6; const depth=Math.max(6, Math.min(70, L.ch/9));
+      const cyc=175; const slabs=Math.min(6, Math.round(depth/9)+1);
+      for(let s=slabs-1;s>=0;s--){ const off=s*4;
+        cx.fillStyle= on? (l===layers.length-1?"#dcecec":"#e6d9fa") : "#f1f0ec";
+        cx.strokeStyle= on? (l===layers.length-1?"#0F7C87":"#6C30D9") : "#d7dad2"; cx.lineWidth=on?1.3:1;
+        cx.fillRect(x+off, cyc-face/2-off, face, face); cx.strokeRect(x+off, cyc-face/2-off, face, face); }
+      cx.fillStyle= on? "#4B515A":"#b8bcb2"; cx.font="9px 'IBM Plex Mono',monospace"; cx.textAlign="center";
+      cx.fillText(L.res+"×"+L.res, x+face/2, cyc+face/2+16); cx.fillText(L.ch+"ch", x+face/2, cyc+face/2+28); cx.textAlign="left";
+      x += face+40;
+    }
+    const cur=layers[shown-1];
+    $("#dcRes").textContent=cur.res+" × "+cur.res;
+    $("#dcCh").textContent=cur.ch;
+    $("#dcLayer").textContent="L"+shown+" / "+layers.length;
+  }
+  $("#dcStep").addEventListener("click",()=>{ if(shown<layers.length){shown++;draw();} });
+  $("#dcReset").addEventListener("click",()=>{ shown=1; if(timer){clearInterval(timer);timer=null;$("#dcPlay").textContent="⏵ Auto";} draw(); });
+  $("#dcPlay").addEventListener("click",function(){ if(timer){clearInterval(timer);timer=null;this.textContent="⏵ Auto";return;}
+    this.textContent="⏸ Pause"; timer=setInterval(()=>{ if(shown>=layers.length){clearInterval(timer);timer=null;$("#dcPlay").textContent="⏵ Auto";return;} shown++; draw(); },700); });
+  draw();
+})();
+
+/* ================= ST04 · mode collapse ================= */
+(function(){
+  const cv=$("#hackCv"); if(!cv) return; const cx=cv.getContext("2d"),W=cv.width,H=cv.height;
+  const fixes=[false,false,false]; const names=["Label smoothing","Feature matching","Balanced G/D"];
+  const rng=mulberry32(9);
+  const M=8, cxC=W/2, cyC=165, R=120;
+  const modes=[]; for(let i=0;i<M;i++){ const a=i/M*TAU-Math.PI/2; modes.push({x:cxC+R*Math.cos(a), y:cyC+R*Math.sin(a)}); }
+  const jit=[]; for(let i=0;i<90;i++) jit.push([gauss(rng)*10, gauss(rng)*10]);
+  function draw(){
+    bg(cx,W,H);
+    const cnt=fixes.filter(Boolean).length; const covered=[1,3,5,8][cnt];
+    label(cx,"DATA MODES (teal rings) · GENERATOR SAMPLES (rose)",20,26,"#4B515A");
+    for(let i=0;i<M;i++){ cx.strokeStyle= i<covered? "#0F7C87":"#cdd6d2"; cx.lineWidth=i<covered?2:1.2;
+      cx.beginPath();cx.arc(modes[i].x,modes[i].y,15,0,TAU);cx.stroke(); }
+    // samples spread over covered modes
+    for(let i=0;i<90;i++){ const m=modes[i%covered]; cx.fillStyle="#C81C6E";cx.globalAlpha=.7;
+      cx.beginPath();cx.arc(m.x+jit[i][0], m.y+jit[i][1], 2.6,0,TAU);cx.fill();cx.globalAlpha=1; }
+    const collapse=covered<=2; const stab=Math.round(covered/M*100);
+    $("#hackModes").textContent=covered+" / "+M;
+    $("#hackCollapse").textContent=collapse?"yes ✗":"no ✓";
+    $("#hackCollapse").parentElement.className="read "+(collapse?"bad":"good");
+    $("#hackStab").textContent=stab+"%";
+  }
+  // build toggle buttons
+  const host=$("#hackCtl"); host.innerHTML="";
+  names.forEach((nm,i)=>{ const b=document.createElement("button"); b.className="chip"; b.textContent=nm;
+    b.addEventListener("click",()=>{ fixes[i]=!fixes[i]; b.classList.toggle("on",fixes[i]); b.classList.toggle("mag",fixes[i]);
+      $("#hackMsg").textContent= fixes.every(x=>!x)? "With no fixes the generator collapses onto one mode — it fools D but ignores most of the data." : "Each fix pushes toward variety and balance; enable all three to cover every mode.";
+      draw(); });
+    host.appendChild(b); });
+  draw();
+})();
+
+/* ================= ST05 · latent interpolation ================= */
+(function(){
+  const cv=$("#latCv"); if(!cv) return; const cx=cv.getContext("2d"),W=cv.width,H=cv.height;
+  let seed=3; let z0,z1;
+  function mk(rng){ return {off:(rng()-0.5)*90, r:44+rng()*34, eye:14+rng()*16, mouth:(rng()-0.5)*2, tone:0.3+rng()*0.55, hue:rng()}; }
+  function reseed(){ const rng=mulberry32(seed); z0=mk(rng); z1=mk(rng); }
+  reseed();
+  let a=0;
+  function lerp(p,q,t){ return p+(q-p)*t; }
+  function draw(){
+    bg(cx,W,H);
+    const z={ off:lerp(z0.off,z1.off,a), r:lerp(z0.r,z1.r,a), eye:lerp(z0.eye,z1.eye,a),
+      mouth:lerp(z0.mouth,z1.mouth,a), tone:lerp(z0.tone,z1.tone,a), hue:lerp(z0.hue,z1.hue,a) };
+    label(cx,"GENERATED SAMPLE  ·  G(z), z interpolated",20,26,"#6C30D9");
+    const ccx=W/2+z.off*0.4, ccy=165, r=z.r;
+    // head
+    const g=Math.round(60+z.tone*150); const tealMix=z.hue;
+    cx.fillStyle="rgb("+Math.round(g*(1-0.25*tealMix))+","+Math.round(g)+","+Math.round(g*(1-0.1*tealMix)+20*tealMix)+")";
+    cx.beginPath();cx.ellipse(ccx,ccy,r,r*1.15,0,0,TAU);cx.fill();
+    cx.strokeStyle="#6C30D9";cx.lineWidth=1.6;cx.stroke();
+    // eyes
+    cx.fillStyle="#14171B";
+    cx.beginPath();cx.arc(ccx-z.eye,ccy-r*0.2,4.5,0,TAU);cx.fill();
+    cx.beginPath();cx.arc(ccx+z.eye,ccy-r*0.2,4.5,0,TAU);cx.fill();
+    // mouth
+    cx.strokeStyle="#C81C6E";cx.lineWidth=3;cx.beginPath();
+    cx.moveTo(ccx-r*0.45, ccy+r*0.4);
+    cx.quadraticCurveTo(ccx, ccy+r*0.4+z.mouth*28, ccx+r*0.45, ccy+r*0.4);cx.stroke();
+    // endpoints strip
+    label(cx,"z₀",30,300,"#0F7C87"); label(cx,"z₁",W-40,300,"#C81C6E");
+    cx.fillStyle="#cbe7ea";cx.fillRect(20,306,60,8*0); // spacer noop
+    // progress bar
+    cx.fillStyle="rgba(20,23,27,.1)";cx.fillRect(60,296,W-120,6);
+    cx.fillStyle="#6C30D9";cx.fillRect(60,296,(W-120)*a,6);
+    cx.fillStyle="#6C30D9";cx.beginPath();cx.arc(60+(W-120)*a,299,6,0,TAU);cx.fill();
+    $("#latAlpha").textContent=fmt(a,2);
+    $("#latNear").textContent= a<0.5? "z₀":"z₁";
+  }
+  $("#latA").addEventListener("input",e=>{a=+e.target.value/100;$("#latAo").textContent=fmt(a,2);draw();});
+  $("#latNew").addEventListener("click",()=>{ seed=(seed*7+3)%9973; reseed(); draw(); });
+  draw();
+})();
+
+/* ================= ST06 · precision / recall ================= */
+(function(){
+  const cv=$("#metCv"); if(!cv) return; const cx=cv.getContext("2d"),W=cv.width,H=cv.height;
+  let thr=50, bal=30;
+  const muN=38,sN=14, muP=64,sP=14;
+  function draw(){
+    bg(cx,W,H);
+    const p=bal/100;
+    const ox=40, oy=30, pw=W-60, ph=150;
+    cx.strokeStyle="#e3e5df";cx.beginPath();cx.moveTo(ox,oy);cx.lineTo(ox,oy+ph);cx.lineTo(ox+pw,oy+ph);cx.stroke();
+    const sx=s=> ox+(s/100)*pw;
+    let pk=0; for(let s=0;s<=100;s+=1) pk=Math.max(pk, (1-p)*npdf(s,muN,sN), p*npdf(s,muP,sP));
+    const curve=(fn,col)=>{ cx.strokeStyle=col;cx.lineWidth=2.2;cx.beginPath();let f=true;
+      for(let s=0;s<=100;s+=1){ const y=oy+ph-(fn(s)/pk)*ph; const X=sx(s); if(f){cx.moveTo(X,y);f=false;}else cx.lineTo(X,y);} cx.stroke(); };
+    curve(s=>(1-p)*npdf(s,muN,sN), "#0F7C87");
+    curve(s=>p*npdf(s,muP,sP), "#C81C6E");
+    // threshold line
+    cx.strokeStyle="#6C30D9";cx.lineWidth=2;cx.beginPath();cx.moveTo(sx(thr),oy);cx.lineTo(sx(thr),oy+ph);cx.stroke();
+    label(cx,"threshold",sx(thr)+4,oy+12,"#6C30D9");
+    label(cx,"neg",sx(muN)-8,oy+ph+16,"#0F7C87"); label(cx,"pos",sx(muP)-8,oy+ph+16,"#C81C6E");
+    // confusion via cdf
+    const TP=p*(1-ncdf(thr,muP,sP)), FN=p*ncdf(thr,muP,sP);
+    const FP=(1-p)*(1-ncdf(thr,muN,sN)), TN=(1-p)*ncdf(thr,muN,sN);
+    const prec=TP/(TP+FP+1e-12), rec=TP/(TP+FN+1e-12), F1=2*prec*rec/(prec+rec+1e-12), acc=TP+TN;
+    // confusion matrix
+    const bx=90, by=oy+ph+40, cw=90, chh=34;
+    const cell=(r,c,lab,val,col)=>{ const x=bx+c*cw, y=by+r*chh;
+      cx.fillStyle=col;cx.globalAlpha=0.14+0.5*clamp(val/Math.max(0.5,p<0.5?0.6:0.6),0,1);cx.fillRect(x,y,cw-4,chh-4);cx.globalAlpha=1;
+      cx.strokeStyle="#cfd3ca";cx.strokeRect(x,y,cw-4,chh-4);
+      cx.fillStyle="#14171B";cx.font="10px 'IBM Plex Mono',monospace";cx.fillText(lab+" "+Math.round(val*100)+"%",x+6,y+20); };
+    label(cx,"pred +",bx+6,by-6,"#8a907f"); label(cx,"pred −",bx+cw+6,by-6,"#8a907f");
+    cell(0,0,"TP",TP,"#0F7C87"); cell(0,1,"FN",FN,"#C81C6E");
+    cell(1,0,"FP",FP,"#C81C6E"); cell(1,1,"TN",TN,"#0F7C87");
+    label(cx,"actual +",bx-64,by+22,"#8a907f"); label(cx,"actual −",bx-64,by+chh+22,"#8a907f");
+    $("#metPrec").textContent=fmt(prec,2);
+    $("#metRec").textContent=fmt(rec,2);
+    $("#metF1").textContent="F1 "+fmt(F1,2)+" · acc "+fmt(acc,2);
+  }
+  $("#metTh").addEventListener("input",e=>{thr=+e.target.value;$("#metTho").textContent=fmt(thr/100,2);draw();});
+  $("#metBal").addEventListener("input",e=>{bal=+e.target.value;$("#metBalo").textContent=bal+"%";draw();});
+  draw();
+})();
+
+/* ================= ST07 · baseline models ================= */
+(function(){
+  const cv=$("#baseCv"); if(!cv) return; const cx=cv.getContext("2d"),W=cv.width,H=cv.height;
+  const opts=[
+    {n:"Fixed-size vector", model:"MLP + ReLU", opt:"Adam / SGD+momentum", reg:"Early stopping (+dropout)",
+     spec:"tabular / feature vector", d:"A feed-forward network of a few ReLU layers is the default for unstructured, fixed-length inputs.", kind:"mlp"},
+    {n:"Image / grid", model:"CNN (conv + pool)", opt:"SGD+momentum / Adam", reg:"Batch norm + early stopping",
+     spec:"2-D grid with local structure", d:"A convolutional network exploits locality and translation structure — the default for images.", kind:"cnn"},
+    {n:"Sequence", model:"LSTM / GRU", opt:"Adam", reg:"Early stopping + dropout",
+     spec:"ordered, variable-length data", d:"A gated recurrent network (or an attention model) is the default for text, audio and time series.", kind:"rnn"}
+  ];
+  let bi=0;
+  function draw(){
+    bg(cx,W,H); const o=opts[bi];
+    label(cx,"BASELINE SKETCH · "+o.model,20,26,"#6C30D9");
+    if(o.kind==="mlp"){
+      const cols=[3,5,5,2], xs=[70,180,290,400];
+      for(let c=0;c<cols.length;c++){ for(let i=0;i<cols[c];i++){ const y=90+i*40;
+        if(c<cols.length-1){ for(let j=0;j<cols[c+1];j++){ cx.strokeStyle="#e0dcef";cx.lineWidth=1;cx.beginPath();cx.moveTo(xs[c],y);cx.lineTo(xs[c+1],90+j*40);cx.stroke(); } } } }
+      for(let c=0;c<cols.length;c++){ for(let i=0;i<cols[c];i++){ const y=90+i*40;
+        cx.beginPath();cx.arc(xs[c],y,10,0,TAU);cx.fillStyle= c===0?"#cbe7ea":(c===cols.length-1?"#f0dbe7":"#e6d9fa");cx.fill();
+        cx.strokeStyle= c===0?"#0F7C87":(c===cols.length-1?"#C81C6E":"#6C30D9");cx.lineWidth=1.4;cx.stroke(); } }
+      label(cx,"input",50,250,"#0F7C87"); label(cx,"ReLU hidden",170,250,"#6C30D9"); label(cx,"output",380,250,"#C81C6E");
+    } else if(o.kind==="cnn"){
+      let x=60; const slabs=[[110,3],[80,32],[56,64],[36,128]]; const cyc=150;
+      slabs.forEach((s,i)=>{ const f=s[0]/1.3; for(let d=Math.min(4,i+1);d>=0;d--){ const off=d*4;
+        cx.fillStyle= i===0?"#cbe7ea":"#e6d9fa"; cx.strokeStyle= i===0?"#0F7C87":"#6C30D9";cx.lineWidth=1.2;
+        cx.fillRect(x+off,cyc-f/2-off,f,f);cx.strokeRect(x+off,cyc-f/2-off,f,f); } x+=f+40; });
+      // class bars
+      cx.fillStyle="#f0dbe7";cx.fillRect(x,120,70,14);cx.fillStyle="#C81C6E";cx.fillRect(x,120,60,14);
+      cx.fillStyle="#f0dbe7";cx.fillRect(x,140,70,14);cx.fillStyle="#e0a9c6";cx.fillRect(x,140,18,14);
+      label(cx,"conv → pool → class",60,250,"#6C30D9");
+    } else {
+      const N=5, ix=60, gap=76, cyc=150, r=15;
+      for(let t=0;t<N-1;t++){ cx.strokeStyle="#6C30D9";cx.lineWidth=2;cx.beginPath();cx.moveTo(ix+t*gap+r,cyc);cx.lineTo(ix+(t+1)*gap-r,cyc);cx.stroke(); }
+      for(let t=0;t<N;t++){ const x=ix+t*gap;
+        cx.beginPath();cx.arc(x,cyc,r,0,TAU);cx.fillStyle="#e6d9fa";cx.fill();cx.strokeStyle="#6C30D9";cx.lineWidth=1.6;cx.stroke();
+        cx.beginPath();cx.arc(x,cyc+64,10,0,TAU);cx.fillStyle="#cbe7ea";cx.fill();cx.strokeStyle="#0F7C87";cx.stroke();
+        cx.strokeStyle="#b9bfb2";cx.beginPath();cx.moveTo(x,cyc+53);cx.lineTo(x,cyc+r+2);cx.stroke(); }
+      label(cx,"LSTM/GRU over time steps",60,250,"#6C30D9");
+    }
+    $("#baseName").textContent=o.n; $("#baseSpec").textContent=o.spec; $("#baseDesc").textContent=o.d;
+    $("#baseModel").textContent=o.model; $("#baseOpt").textContent=o.opt; $("#baseReg").textContent=o.reg;
+  }
+  chipGroup("#baseCtl",opts.map(o=>o.n),bi,i=>{bi=i;draw();});
+  draw();
+})();
+
+/* ================= ST08 · gather more data ================= */
+(function(){
+  const cv=$("#dataCv"); if(!cv) return; const cx=cv.getContext("2d"),W=cv.width,H=cv.height;
+  let N=25, cap=3; const irr=0.03;
+  function errs(nf,c){ const bias=0.42/c; const train=clamp(irr+bias*0.30*(0.6+0.4*nf),0,1);
+    const gap=0.62*c/(1+7*nf); const test=clamp(train+gap,0,1); return {train,test,gap:test-train}; }
+  function draw(){
+    bg(cx,W,H);
+    const ox=44, oy=30, pw=W-64, ph=250;
+    cx.strokeStyle="#e3e5df";cx.beginPath();cx.moveTo(ox,oy);cx.lineTo(ox,oy+ph);cx.lineTo(ox+pw,oy+ph);cx.stroke();
+    label(cx,"error",ox-30,oy-8,"#8a907f"); label(cx,"dataset size →",ox+pw-96,oy+ph+18,"#8a907f");
+    const sy=v=> oy+ph-clamp(v/0.6,0,1)*ph;
+    const curve=(key,col)=>{ cx.strokeStyle=col;cx.lineWidth=2.4;cx.beginPath();let f=true;
+      for(let i=0;i<=100;i++){ const nf=i/100; const e=errs(nf,cap)[key]; const x=ox+nf*pw; const y=sy(e);
+        if(f){cx.moveTo(x,y);f=false;}else cx.lineTo(x,y);} cx.stroke(); };
+    curve("test","#C81C6E"); curve("train","#6C30D9");
+    label(cx,"test error",ox+pw-90,sy(errs(1,cap).test)-6,"#C81C6E");
+    label(cx,"train error",ox+pw-90,sy(errs(1,cap).train)+14,"#6C30D9");
+    // current N
+    const nf=N/100; const e=errs(nf,cap);
+    const x=ox+nf*pw; cx.strokeStyle="#B27412";cx.setLineDash([3,3]);cx.beginPath();cx.moveTo(x,oy);cx.lineTo(x,oy+ph);cx.stroke();cx.setLineDash([]);
+    cx.fillStyle="#6C30D9";cx.beginPath();cx.arc(x,sy(e.train),4,0,TAU);cx.fill();
+    cx.fillStyle="#C81C6E";cx.beginPath();cx.arc(x,sy(e.test),4,0,TAU);cx.fill();
+    // gap bracket
+    cx.strokeStyle="rgba(178,116,18,.7)";cx.lineWidth=1.4;cx.beginPath();cx.moveTo(x+8,sy(e.train));cx.lineTo(x+8,sy(e.test));cx.stroke();
+    label(cx,"gap",x+12,(sy(e.train)+sy(e.test))/2,"#B27412");
+    let act;
+    if(e.train>0.18) act="Training error is high — the model underfits. Increase capacity, train longer, or tune the learning rate before gathering data.";
+    else if(e.gap>0.12) act="Low training error but a large gap — this is overfitting. Gathering more data (or adding regularisation) is the right move.";
+    else act="On target: training fits and the generalisation gap is small. Refine, or ship — more data would add little.";
+    $("#dataNo").textContent=Math.round(100*Math.pow(2,nf*3))+" ex";
+    $("#dataTrain").textContent=fmt(e.train,3);
+    $("#dataTest").textContent=fmt(e.test,3);
+    $("#dataGap").textContent=fmt(e.gap,3);
+    $("#dataAct").textContent=act;
+  }
+  $("#dataN").addEventListener("input",e=>{N=+e.target.value;draw();});
+  $("#dataCap").addEventListener("input",e=>{cap=+e.target.value;$("#dataCapo").textContent=cap;draw();});
+  draw();
+})();
+
+/* ================= ST09 · hyperparameters (LR U-curve) ================= */
+(function(){
+  const cv=$("#hpCv"); if(!cv) return; const cx=cv.getContext("2d"),W=cv.width,H=cv.height;
+  let u=-3, mode=0; const rng=mulberry32(13);
+  function loss(uu){ let l=0.15+0.55*Math.pow((uu+3)/1.8,2); if(uu>-2) l+=1.8*Math.pow(uu+2,2); return clamp(l,0,1.6); }
+  const grid=[]; for(let i=0;i<6;i++) grid.push(-5+ i*(5/5));
+  const rand=[]; for(let i=0;i<6;i++) rand.push(-5+rng()*5);
+  function draw(){
+    bg(cx,W,H);
+    const ox=44, oy=30, pw=W-64, ph=250;
+    cx.strokeStyle="#e3e5df";cx.beginPath();cx.moveTo(ox,oy);cx.lineTo(ox,oy+ph);cx.lineTo(ox+pw,oy+ph);cx.stroke();
+    label(cx,"val loss",ox-30,oy-8,"#8a907f"); label(cx,"learning rate (log₁₀) →",ox+pw-140,oy+ph+18,"#8a907f");
+    const sx=uu=> ox+((uu+5)/5)*pw; const sy=l=> oy+ph-clamp(l/1.6,0,1)*ph;
+    cx.strokeStyle="#6C30D9";cx.lineWidth=2.4;cx.beginPath();let f=true;
+    for(let uu=-5;uu<=0;uu+=0.05){ const y=sy(loss(uu)); const x=sx(uu); if(f){cx.moveTo(x,y);f=false;}else cx.lineTo(x,y);} cx.stroke();
+    // good band
+    cx.fillStyle="rgba(15,124,135,.08)";cx.fillRect(sx(-4),oy,sx(-2)-sx(-4),ph);
+    label(cx,"good band",sx(-3.6),oy+14,"#0F7C87");
+    // samples
+    const pts= mode===0? grid:rand; let best=1e9;
+    pts.forEach(uu=>{ const l=loss(uu); best=Math.min(best,l); const x=sx(uu),y=sy(l);
+      cx.fillStyle= (uu>=-4&&uu<=-2)? "#0F7C87":"#B27412"; cx.beginPath();cx.arc(x,y,4,0,TAU);cx.fill(); });
+    // current
+    const x=sx(u), y=sy(loss(u)); cx.strokeStyle="#C81C6E";cx.lineWidth=2;cx.beginPath();cx.arc(x,y,7,0,TAU);cx.stroke();
+    cx.setLineDash([3,3]);cx.beginPath();cx.moveTo(x,oy);cx.lineTo(x,oy+ph);cx.stroke();cx.setLineDash([]);
+    const reg = u<-4? "underfitting (LR too low)" : (u>-2? "diverging (LR too high)":"good");
+    $("#hpReg").textContent=reg;
+    $("#hpReg").parentElement.className="read "+(reg==="good"?"good":"warn");
+    $("#hpVal").textContent=fmt(loss(u),3);
+    $("#hpBest").textContent=fmt(best,3);
+  }
+  chipGroup("#hpModeCtl",["Grid search","Random search"],0,i=>{mode=i;
+    $("#hpMsg").textContent= i===1? "Random search spreads its trials unevenly, so it samples the useful valley more densely than an even grid — usually finding a good rate in fewer runs." : "Grid search samples evenly; many trials land in useless regions (too low or too high).";
+    draw(); });
+  $("#hpLr").addEventListener("input",e=>{u=+e.target.value; const lr=Math.pow(10,u);
+    $("#hpLro").textContent= lr>=0.01? fmt(lr,2) : lr.toExponential(0); draw();});
+  draw();
+})();
+
+/* ================= ST10 · gradient check ================= */
+(function(){
+  const cv=$("#gcCv"); if(!cv) return; const cx=cv.getContext("2d"),W=cv.width,H=cv.height;
+  const funcs=[
+    {n:"x³", f:x=>x*x*x, d:x=>3*x*x},
+    {n:"sin x", f:x=>Math.sin(x), d:x=>Math.cos(x)},
+    {n:"tanh x", f:x=>Math.tanh(x), d:x=>1-Math.tanh(x)*Math.tanh(x)},
+    {n:"eˣ", f:x=>Math.exp(x), d:x=>Math.exp(x)}
+  ];
+  let fi=0, le=-4; const x0=0.7;
+  function relerr(fn,eps){ const num=(fn.f(x0+eps)-fn.f(x0-eps))/(2*eps); const ana=fn.d(x0);
+    return {num, ana, err:Math.abs(ana-num)/(Math.abs(ana)+Math.abs(num)+1e-30)}; }
+  function draw(){
+    bg(cx,W,H); const fn=funcs[fi];
+    const ox=48, oy=30, pw=W-70, ph=250;
+    cx.strokeStyle="#e3e5df";cx.beginPath();cx.moveTo(ox,oy);cx.lineTo(ox,oy+ph);cx.lineTo(ox+pw,oy+ph);cx.stroke();
+    label(cx,"rel. error (log)",ox-38,oy-8,"#8a907f"); label(cx,"ε (log₁₀) →",ox+pw-80,oy+ph+18,"#8a907f");
+    // log-log: x = log10(eps) from -11..0 ; y = log10(relerr) from 0..-16
+    const sx=le2=> ox+((le2+11)/11)*pw; const sy=ler=> oy + clamp((-ler)/16,0,1)*ph; // ler=log10(err), err small→ler very negative→top? invert
+    // we want tiny error near bottom. Let's map log10(err): -16 (best) at bottom, 0 (worst) at top.
+    const syErr=logErr=> oy + clamp((logErr+16)/16,0,1)*ph; // logErr in [-16,0]
+    cx.strokeStyle="#6C30D9";cx.lineWidth=2.2;cx.beginPath();let f=true;
+    for(let l=-11;l<=0;l+=0.15){ const e=Math.pow(10,l); const r=relerr(fn,e).err; const logE=Math.log10(Math.max(r,1e-16));
+      const x=sx(l), y=syErr(logE); if(f){cx.moveTo(x,y);f=false;}else cx.lineTo(x,y);} cx.stroke();
+    label(cx,"round-off ↑",ox+6,oy+ph-8,"#8a907f"); label(cx,"truncation ↑",ox+pw-96,oy+16,"#8a907f");
+    // current
+    const cur=relerr(fn,Math.pow(10,le)); const logE=Math.log10(Math.max(cur.err,1e-16));
+    const x=sx(le), y=syErr(logE); cx.strokeStyle="#C81C6E";cx.lineWidth=2;cx.beginPath();cx.arc(x,y,7,0,TAU);cx.stroke();
+    cx.setLineDash([3,3]);cx.beginPath();cx.moveTo(x,oy);cx.lineTo(x,oy+ph);cx.stroke();cx.setLineDash([]);
+    $("#gcAna").textContent=fmt(cur.ana,4);
+    $("#gcNum").textContent=fmt(cur.num,4);
+    $("#gcErr").textContent= cur.err<1e-3? cur.err.toExponential(1) : fmt(cur.err,4);
+  }
+  chipGroup("#gcCtl",funcs.map(f=>f.n),fi,i=>{fi=i;draw();});
+  $("#gcEps").addEventListener("input",e=>{le=+e.target.value; const ev=Math.pow(10,le);
+    $("#gcEpso").textContent=ev.toExponential(0); draw();});
+  draw();
+})();
+
+/* ================= ST11 · design process ================= */
+(function(){
+  const cv=$("#procCv"); if(!cv) return; const cx=cv.getContext("2d"),W=cv.width,H=cv.height;
+  const stages=["1 · Goals & metric","2 · Fast baseline","3 · Instrument & diagnose","4 · Iterate one change"];
+  let cur=0;
+  function draw(){
+    bg(cx,W,H);
+    label(cx,"THE DESIGN LOOP",20,26,"#4B515A");
+    const cxs=[120,340,340,120], cys=[90,90,230,230], bw=150, bh=54;
+    // boxes at four corners forming a loop
+    const pos=[[110,80],[300,80],[300,220],[110,220]];
+    for(let i=0;i<4;i++){ const [x,y]=pos[i]; const on=i===cur;
+      cx.fillStyle= on? "#e6d9fa":"#f4f3ef"; cx.strokeStyle= on? "#6C30D9":"#cfd3ca"; cx.lineWidth= on?2.4:1.4;
+      cx.fillRect(x,y,bw,bh); cx.strokeRect(x,y,bw,bh);
+      cx.fillStyle= on? "#3a1f6b":"#6b7079"; cx.font="11px 'Saira Condensed',sans-serif";
+      cx.fillText(stages[i], x+12, y+22); cx.font="10px 'IBM Plex Mono',monospace"; cx.fillStyle="#8a907f";
+    }
+    // arrows around the loop 0->1->3->2->(back to 3 loop)  visually: 0->1 (top), 1->2(right down), 2->3(bottom back), 3->0(left up)
+    const arrow=(ax,ay,bx,by)=>{ cx.strokeStyle="#b9bfb2";cx.lineWidth=1.8;cx.beginPath();cx.moveTo(ax,ay);cx.lineTo(bx,by);cx.stroke();
+      const a=Math.atan2(by-ay,bx-ax); cx.beginPath();cx.moveTo(bx,by);cx.lineTo(bx-8*Math.cos(a-0.4),by-8*Math.sin(a-0.4));cx.lineTo(bx-8*Math.cos(a+0.4),by-8*Math.sin(a+0.4));cx.closePath();cx.fillStyle="#b9bfb2";cx.fill(); };
+    arrow(260,107,300,107);      // 0 top-right -> 1
+    arrow(375,134,375,220);      // 1 -> 2 (down right)
+    arrow(300,247,260,247);      // 2 -> 3 (bottom)
+    arrow(185,220,185,134);      // 3 -> 0 (up left)
+    // iterate loop back arrow (3<->2)
+    cx.strokeStyle="#6C30D9";cx.setLineDash([4,3]);cx.lineWidth=1.4;
+    cx.beginPath();cx.moveTo(300,240);cx.quadraticCurveTo(240,285,185,247);cx.stroke();cx.setLineDash([]);
+    label(cx,"iterate",225,300,"#6C30D9");
+  }
+  const diags=[
+    {s:"High training error", spec:"underfitting", a:"Increase model capacity, train longer, or lower the learning rate. Do NOT gather more data yet — the model can't fit what it has."},
+    {s:"Low train, high test", spec:"overfitting (large gap)", a:"Gather more data, or add regularisation (dropout, early stopping, weight decay)."},
+    {s:"Metric doesn't fit goal", spec:"wrong target", a:"Redefine the performance metric (e.g. precision/recall, cost-weighted) before any further tuning."},
+    {s:"Loss becomes NaN", spec:"diverging", a:"Lower the learning rate and add gradient clipping; check for bad inputs or numerical issues."}
+  ];
+  $("#procStep").addEventListener("click",()=>{ cur=(cur+1)%4; draw(); });
+  $("#procReset").addEventListener("click",()=>{ cur=0; draw(); });
+  chipGroup("#procDiagCtl",diags.map(d=>d.s),-1,i=>{ $("#procSympSpec").textContent="symptom · "+diags[i].spec; $("#procAct").textContent=diags[i].a; });
+  draw();
+})();
+
+/* ================= quiz ================= */
+const qs=[
+ {q:"In a GAN, the generator and discriminator are trained to…",o:["Minimise the same loss together","Play opposing roles: G fools D while D catches fakes","Both classify real data","Ignore each other"],a:1,e:"It's a two-player game: D learns to tell real from fake, and G learns to produce fakes that D labels as real."},
+ {q:"At the ideal GAN equilibrium, the discriminator outputs…",o:["1 for every input","0 for every input","0.5 everywhere (it can only guess)","a random value"],a:2,e:"When p_gen = p_data the samples are indistinguishable, so the best D can do is output 0.5 — chance."},
+ {q:"For a fixed generator, the optimal discriminator D*(x) equals…",o:["p_data / (p_data + p_gen)","p_gen / p_data","1 − p_data","the sigmoid of x"],a:0,e:"Maximising the value function gives D*(x)=p_data(x)/(p_data(x)+p_gen(x)); substituting it shows G minimises the Jensen–Shannon divergence."},
+ {q:"Why is the non-saturating generator loss (maximise log D(G(z))) used?",o:["It changes the fixed point","It gives G strong gradients early when samples are easy to catch","It removes the discriminator","It makes D untrainable"],a:1,e:"The original log(1−D(G(z))) saturates when fakes are obvious, starving G of gradient; the non-saturating form keeps gradients strong with the same optimum."},
+ {q:"Which is a DCGAN guideline?",o:["Use large fully-connected layers","Use pooling instead of strided convolutions","Use batch norm, strided/transposed convs, ReLU in G and LeakyReLU in D","Use tanh in the discriminator's hidden layers"],a:2,e:"DCGAN replaces pooling/FC layers with strided and transposed convolutions, adds batch norm, and uses ReLU (G) / LeakyReLU (D) with a tanh output on G."},
+ {q:"Mode collapse is when the generator…",o:["Produces only one or a few outputs, ignoring the rest of the distribution","Perfectly matches the data","Has too many parameters","Cannot be trained at all"],a:0,e:"G finds a small set of outputs that reliably fool D and produces only those, failing to cover the full data distribution."},
+ {q:"Accuracy is a poor metric when…",o:["Classes are balanced","Classes are highly imbalanced or error costs differ","There are exactly two classes","The model is a CNN"],a:1,e:"With rare positives, always predicting the majority class scores high accuracy while catching nothing — precision/recall reveal the truth."},
+ {q:"Precision and recall are defined as…",o:["TP/(TP+FP) and TP/(TP+FN)","TP/(TP+FN) and TP/(TP+FP)","TN/(TN+FP) and TP/(TP+FP)","both equal accuracy"],a:0,e:"Precision = TP/(TP+FP) (of those flagged, how many were right); recall = TP/(TP+FN) (of those that should be flagged, how many were caught)."},
+ {q:"A sensible default baseline for image data is…",o:["A linear model","A convolutional network","An LSTM","A single perceptron"],a:1,e:"CNNs exploit locality and translation structure, making them the default baseline for images; vectors→MLP, sequences→LSTM/GRU."},
+ {q:"You should gather more data primarily when…",o:["Training error is high","Training error is low but test error is much higher (large gap)","The learning rate is too high","The model has no bias"],a:1,e:"A large train–test gap signals overfitting, where more data (or regularisation) helps. High training error means underfitting — fix the model first."},
+ {q:"Compared with grid search, random search for hyperparameters…",o:["Is always worse","Usually finds good settings faster by sampling important dimensions more densely","Requires the model to be linear","Only works for the learning rate"],a:1,e:"Random search spends trials unevenly and covers the few important hyperparameters far better than an even grid, typically finding good values in fewer runs."},
+ {q:"A gradient check compares analytic gradients against…",o:["A second neural network","A numerical finite-difference estimate with a well-chosen ε","The training loss","The test accuracy"],a:1,e:"Compare back-prop derivatives to (f(x+ε)−f(x−ε))/2ε; a mismatch means a bug. ε must avoid both truncation (too large) and round-off (too small)."}
+];
+let score=0,answered=new Set();
+function quizRender(){
+  $("#quiz").innerHTML=qs.map((q,i)=>
+    '<div class="q" data-i="'+i+'"><p class="stem">'+(i+1)+'. '+q.q+'</p>'+
+    q.o.map((o,j)=>'<button class="opt" data-j="'+j+'">'+o+'</button>').join("")+
+    '<div class="exp">'+q.e+'</div></div>').join("");
+  $("#score").textContent=score+" / "+qs.length;
+  $$("#quiz .q").forEach(qel=>{
+    const i=+qel.dataset.i;
+    $$(".opt",qel).forEach(bt=>bt.addEventListener("click",()=>{
+      if(answered.has(i))return; answered.add(i);
+      const j=+bt.dataset.j;
+      if(j===qs[i].a){bt.classList.add("right");score++;}
+      else{bt.classList.add("wrong");$$(".opt",qel)[qs[i].a].classList.add("right");}
+      $(".exp",qel).classList.add("show");
+      $("#score").textContent=score+" / "+qs.length;
+    }));
+  });
+}
+$("#qReset").addEventListener("click",()=>{score=0;answered=new Set();quizRender();annotate($("main"));});
+quizRender();
+
+/* ================= glossary + abbr ================= */
+const ABBR={
+ "GAN":"Generative Adversarial Network — a generator and a discriminator trained as adversaries so the generator learns to produce realistic samples",
+ "generator":"Generator (G) — maps a random latent vector to a synthetic sample; tries to fool the discriminator",
+ "discriminator":"Discriminator (D) — outputs the probability that a sample is real; tries to catch the generator's fakes",
+ "generative model":"Generative model — models the data distribution itself and can sample new examples",
+ "discriminative model":"Discriminative model — models P(label | input); classifies rather than generates",
+ "latent vector":"Latent vector (z) — the random noise input to the generator; a point in latent space",
+ "latent space":"Latent space — the space of latent vectors; in a good GAN it is smooth and semantically meaningful",
+ "minimax":"Minimax game — the discriminator maximises and the generator minimises one shared value function",
+ "value function":"Value function — the GAN objective E[log D(x)] + E[log(1−D(G(z)))] that the two networks fight over",
+ "Jensen-Shannon divergence":"Jensen–Shannon divergence — a symmetric measure of distance between distributions; GAN's generator implicitly minimises it",
+ "non-saturating loss":"Non-saturating loss — training G to maximise log D(G(z)) so it gets strong gradients early",
+ "DCGAN":"Deep Convolutional GAN — the architectural recipe (strided/transposed convs, batch norm, ReLU/LeakyReLU, tanh) that made image GANs stable",
+ "transposed convolution":"Transposed (fractionally-strided) convolution — an upsampling layer that grows a feature map's spatial size",
+ "batch normalization":"Batch normalization — standardise activations with batch statistics to stabilise and speed training",
+ "LeakyReLU":"LeakyReLU — a ReLU variant with a small negative slope, used in the DCGAN discriminator",
+ "mode collapse":"Mode collapse — the generator produces only a few outputs, failing to cover the data distribution",
+ "label smoothing":"Label smoothing — softening real labels (e.g. to 0.9) to stabilise the discriminator",
+ "feature matching":"Feature matching — training G to match statistics of D's intermediate features, encouraging variety",
+ "image-to-image translation":"Image-to-image translation — mapping images between domains, e.g. sketch→photo (pix2pix, CycleGAN)",
+ "super-resolution":"Super-resolution — increasing image resolution plausibly (e.g. SRGAN)",
+ "performance metric":"Performance metric — the quantity that measures success; must reflect the real goal",
+ "precision":"Precision — TP/(TP+FP): of the items flagged positive, the fraction that truly are",
+ "recall":"Recall — TP/(TP+FN): of the truly positive items, the fraction the model caught",
+ "F-score":"F-score (F1) — the harmonic mean of precision and recall, balancing the two",
+ "confusion matrix":"Confusion matrix — the table of true/false positives and negatives",
+ "baseline model":"Baseline model — a sensible default to measure against before adding complexity",
+ "generalization gap":"Generalisation gap — the difference between test error and training error; large gap signals overfitting",
+ "learning curve":"Learning curve — performance plotted against training-set size, used to decide whether more data helps",
+ "underfitting":"Underfitting — high training error; the model can't fit the data (too little capacity or poor optimisation)",
+ "overfitting":"Overfitting — low training error but high test error; the model memorises rather than generalises",
+ "learning rate":"Learning rate — step size for parameter updates; the single most important hyperparameter (a U-shaped curve)",
+ "grid search":"Grid search — trying hyperparameters on an even grid of values",
+ "random search":"Random search — sampling hyperparameters randomly; usually more efficient than grid search",
+ "gradient check":"Gradient check — comparing analytic back-prop gradients with a numerical finite-difference estimate to find bugs",
+ "early stopping":"Early stopping — halting training when validation error stops improving; cheap, effective regularisation"
+};
+const NOABBR=new Set(["generator","discriminator","latent space","precision","recall","learning rate"]);
+const aKeys=Object.keys(ABBR).filter(k=>!NOABBR.has(k)).sort((a,b)=>b.length-a.length);
+const aEsc=s=>s.replace(/[.*+?^${}()|[\]\\\-]/g,"\\$&");
+const aPat="(?:^|(?<=[^A-Za-z0-9]))("+aKeys.map(aEsc).join("|")+")(?![A-Za-z0-9])";
+let rxG,rxT;
+try{ rxG=new RegExp(aPat,"g"); rxT=new RegExp(aPat); }
+catch(e){ rxG=new RegExp("\\b("+aKeys.map(aEsc).join("|")+")\\b","g"); rxT=new RegExp("\\b("+aKeys.map(aEsc).join("|")+")\\b"); }
+function annotate(root){
+  if(!root) return;
+  const bad={SCRIPT:1,STYLE:1,ABBR:1,BUTTON:1,INPUT:1,TEXTAREA:1,H1:1,H2:1,TITLE:1,PRE:1,CANVAS:1};
+  const nodes=[], w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null);
+  while(w.nextNode()){
+    const n=w.currentNode;
+    if(!n.nodeValue||!rxT.test(n.nodeValue)) continue;
+    let p=n.parentNode, ok=true;
+    while(p&&p!==root.parentNode){
+      if(p.nodeType===1){
+        if(p.namespaceURI==="http://www.w3.org/2000/svg"||bad[p.tagName]){ok=false;break;}
+        if(p.classList&&p.classList.contains("no-abbr")){ok=false;break;}
+      }
+      p=p.parentNode;
+    }
+    if(ok) nodes.push(n);
+  }
+  nodes.forEach(n=>{
+    const s=n.nodeValue, frag=document.createDocumentFragment();
+    let last=0,m; rxG.lastIndex=0;
+    while((m=rxG.exec(s))!==null){
+      const term=m[1], at=m.index+m[0].length-term.length;
+      if(at>last) frag.appendChild(document.createTextNode(s.slice(last,at)));
+      const a=document.createElement("abbr");
+      a.title=ABBR[term]; a.textContent=term; frag.appendChild(a);
+      last=at+term.length;
+      if(rxG.lastIndex===m.index) rxG.lastIndex++;
+    }
+    if(last<s.length) frag.appendChild(document.createTextNode(s.slice(last)));
+    if(frag.childNodes.length) n.parentNode.replaceChild(frag,n);
+  });
+}
+const pop=document.createElement("div"); pop.className="abbr-pop"; document.body.appendChild(pop);
+let popT;
+document.addEventListener("click",e=>{
+  const t=e.target, a=(t&&t.closest)?t.closest("abbr[title]"):null;
+  if(a){ pop.textContent=a.textContent+" · "+a.title; pop.classList.add("on");
+    clearTimeout(popT); popT=setTimeout(()=>pop.classList.remove("on"),4500); }
+  setTimeout(()=>annotate($("main")),40);
+});
+(function glossary(){
+  const gl=$("#gloss");
+  gl.innerHTML=Object.keys(ABBR).sort((a,b)=>a.toLowerCase().localeCompare(b.toLowerCase()))
+    .map(k=>"<div data-k=\""+(k+" "+ABBR[k]).toLowerCase().replace(/"/g,"")+"\"><b>"+k+"</b> — "+ABBR[k]+"</div>").join("");
+  $("#glossQ").addEventListener("input",e=>{
+    const q=e.target.value.trim().toLowerCase();
+    $$("#gloss div").forEach(d=>{ d.style.display=(!q||d.dataset.k.indexOf(q)>-1)?"":"none"; });
+  });
+})();
+annotate($("main"));
+})();
+</script>
+</body></html>
