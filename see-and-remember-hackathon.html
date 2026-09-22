@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>See &amp; Remember — a 2-hour deep learning hackathon</title>
+<style>
+  :root{
+    --paper:#eef0f4; --card:#ffffff; --ink:#17171f; --muted:#585a6b;
+    --line:#dde0e8; --line-soft:#e9ebf1;
+    --see:#0d8f86;      /* CNN track — looking */
+    --see-wash:#e2f2f0;
+    --remember:#c9761a; /* RNN track — remembering */
+    --remember-wash:#f8ecdb;
+    --brand:#4b3fd4;    /* structure / links */
+    --brand-wash:#ecebfb;
+    --serif:Georgia,"Iowan Old Style","Times New Roman",serif;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:var(--sans); font-size:16px; line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:860px; margin:0 auto; padding:0 22px 96px}
+
+  /* ---- top bar ---- */
+  .bar{
+    position:sticky; top:0; z-index:20; background:rgba(238,240,244,.92);
+    backdrop-filter:saturate(1.4) blur(8px); border-bottom:1px solid var(--line);
+  }
+  .bar-inner{max-width:860px; margin:0 auto; padding:10px 22px; display:flex;
+    align-items:center; gap:14px; flex-wrap:wrap}
+  .bar .mark{font-family:var(--serif); font-weight:700; letter-spacing:.2px}
+  .bar .mark b{color:var(--brand)}
+  .bar nav{margin-left:auto; display:flex; gap:16px; flex-wrap:wrap}
+  .bar nav a{color:var(--muted); text-decoration:none; font-size:13.5px}
+  .bar nav a:hover{color:var(--ink)}
+
+  /* ---- hero ---- */
+  header.hero{padding:64px 0 30px}
+  .kicker{font-family:var(--mono); font-size:12.5px; color:var(--brand); margin:0 0 18px}
+  h1{
+    font-family:var(--serif); font-weight:700; font-size:clamp(38px,7vw,66px);
+    line-height:1.02; letter-spacing:-.5px; margin:0 0 20px;
+  }
+  h1 .see{color:var(--see)} h1 .rem{color:var(--remember)}
+  .lede{font-size:19px; color:var(--muted); max-width:64ch; margin:0}
+
+  .facts{display:flex; flex-wrap:wrap; gap:10px; margin:30px 0 6px}
+  .fact{background:var(--card); border:1px solid var(--line); border-radius:10px;
+    padding:9px 14px; font-size:14px}
+  .fact span{color:var(--muted)}
+
+  /* ---- download row ---- */
+  .downloads{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:26px 0 8px}
+  .dl{display:block; text-decoration:none; color:inherit; background:var(--card);
+    border:1px solid var(--line); border-radius:12px; padding:16px 18px; transition:border-color .15s}
+  .dl:hover{border-color:var(--brand)}
+  .dl .lab{font-weight:600; margin:0 0 3px}
+  .dl .sub{font-size:13.5px; color:var(--muted); margin:0}
+  .dl.primary{border-color:var(--brand); box-shadow:0 1px 0 var(--brand-wash), inset 3px 0 0 var(--brand)}
+
+  /* ---- sections ---- */
+  section{margin-top:52px}
+  h2{font-family:var(--serif); font-size:30px; letter-spacing:-.3px; margin:0 0 6px}
+  h2 + .say{color:var(--muted); margin:0 0 22px; max-width:66ch}
+  h3{font-size:19px; margin:26px 0 8px}
+  p{margin:0 0 14px}
+  a{color:var(--brand)}
+  .divider{height:1px; background:var(--line); border:0; margin:0}
+
+  /* ---- run of show ---- */
+  table{width:100%; border-collapse:collapse; margin:8px 0 6px; font-size:15px}
+  th,td{text-align:left; padding:11px 12px; border-bottom:1px solid var(--line-soft); vertical-align:top}
+  th{font-size:12.5px; letter-spacing:.4px; color:var(--muted); font-weight:600}
+  td.t{font-family:var(--mono); font-size:13.5px; color:var(--brand); white-space:nowrap; width:118px}
+  tbody tr:last-child td{border-bottom:0}
+
+  /* ---- flagship cards ---- */
+  .flag{background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:24px 26px; margin:18px 0}
+  .flag.see{border-left:5px solid var(--see)}
+  .flag.remember{border-left:5px solid var(--remember)}
+  .tag{display:inline-block; font-family:var(--mono); font-size:11.5px; padding:3px 9px;
+    border-radius:20px; margin:0 0 10px}
+  .tag.see{background:var(--see-wash); color:#075e58}
+  .tag.remember{background:var(--remember-wash); color:#8a5210}
+  .flag h3{margin-top:6px}
+  .claim{border-left:3px solid var(--line); padding:2px 0 2px 14px; color:var(--muted); margin:14px 0}
+  ol.deliver{margin:8px 0 0; padding-left:20px}
+  ol.deliver li{margin:6px 0}
+
+  /* ---- bonus grid ---- */
+  .bonus{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+  .col{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:20px 22px}
+  .col.see{border-top:4px solid var(--see)}
+  .col.remember{border-top:4px solid var(--remember)}
+  .col h3{margin-top:0}
+  .b{padding:11px 0; border-bottom:1px solid var(--line-soft)}
+  .b:last-child{border-bottom:0; padding-bottom:0}
+  .b .bt{font-weight:600}
+  .b .pts{float:right; font-family:var(--mono); font-size:12.5px; color:var(--muted)}
+  .b .bd{font-size:14px; color:var(--muted); margin:2px 0 0}
+
+  /* ---- checklist / questions ---- */
+  ul.plain{list-style:none; padding:0; margin:0}
+  ul.plain li{padding:8px 0 8px 30px; position:relative; border-bottom:1px solid var(--line-soft)}
+  ul.plain li:before{content:""; position:absolute; left:0; top:12px; width:15px; height:15px;
+    border:1.5px solid var(--brand); border-radius:4px}
+  ol.q{padding-left:22px} ol.q li{margin:9px 0}
+
+  .callout{background:var(--brand-wash); border:1px solid #d9d6f7; border-radius:12px;
+    padding:16px 18px; font-size:14.5px; margin:16px 0}
+  code{font-family:var(--mono); font-size:.9em; background:#eceef3; padding:1px 5px; border-radius:4px}
+
+  /* ---- rubric ---- */
+  .rub td:last-child{width:64px; font-family:var(--mono); text-align:right; color:var(--brand)}
+
+  /* ---- scorecard ---- */
+  .scorecard{background:var(--card); border:1px dashed var(--muted); border-radius:14px;
+    padding:26px; margin-top:18px}
+  .scorecard h3{margin-top:0}
+  .rowline{display:flex; justify-content:space-between; border-bottom:1px solid var(--line);
+    padding:12px 0; gap:12px}
+  .rowline .box{border:1px solid var(--muted); border-radius:6px; width:70px; height:26px}
+
+  footer{margin-top:60px; padding-top:22px; border-top:1px solid var(--line); color:var(--muted); font-size:14px}
+  footer a{color:var(--brand)}
+
+  @media (max-width:640px){
+    .downloads,.bonus{grid-template-columns:1fr}
+    .bar nav{display:none}
+    header.hero{padding:40px 0 20px}
+  }
+  @media print{
+    :root{--paper:#fff}
+    .bar,.downloads{display:none}
+    body{font-size:12pt}
+    .flag,.col,.scorecard,.callout{break-inside:avoid}
+    .page-break{break-before:page}
+    a{color:var(--ink); text-decoration:none}
+  }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <div class="bar-inner">
+    <span class="mark">See &amp; <b>Remember</b></span>
+    <nav>
+      <a href="#schedule">Schedule</a>
+      <a href="#scoring">Scoring</a>
+      <a href="#setup">Setup</a>
+      <a href="#flagships">Flagships</a>
+      <a href="#bonus">Bonuses</a>
+      <a href="#judging">Judging</a>
+      <a href="#scorecard">Scorecard</a>
+    </nav>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <header class="hero">
+    <p class="kicker">A 2-hour deep learning hackathon · Chapters 9 &amp; 10</p>
+    <h1>Look <span class="see">local</span>,<br>carry the <span class="rem">past</span>.</h1>
+    <p class="lede">Two hours, two ideas. Convolutional nets learn to <b>see</b> by looking local and
+      sharing everywhere; recurrent nets learn to <b>remember</b> by reading in order and holding a
+      hidden state. Every challenge asks your team to prove one claim from the chapters with real
+      code — and to say <i>why</i> it happens.</p>
+
+    <div class="facts">
+      <div class="fact"><span>Duration</span> &nbsp;120 min</div>
+      <div class="fact"><span>Teams</span> &nbsp;2–4 people</div>
+      <div class="fact"><span>Tools</span> &nbsp;Google Colab · PyTorch</div>
+      <div class="fact"><span>Level</span> &nbsp;beginner → advanced</div>
+    </div>
+
+    <div class="downloads">
+      <a class="dl primary" href="./see-and-remember-starter.ipynb" download>
+        <p class="lab">↓ Starter notebook (.ipynb)</p>
+        <p class="sub">Both flagships run out of the box. Open it in Colab — see Setup below.</p>
+      </a>
+      <a class="dl" href="https://colab.research.google.com/" target="_blank" rel="noopener">
+        <p class="lab">Open Google Colab</p>
+        <p class="sub">File → Upload notebook → pick the .ipynb, then enable the GPU.</p>
+      </a>
+      <a class="dl" href="https://ketanp23.github.io/deeplearningclass/cnn-deep-learning.html" target="_blank" rel="noopener">
+        <p class="lab">CNN chapter (reference)</p>
+        <p class="sub">Convolution, pooling, priors, variants, batch norm, ImageNet.</p>
+      </a>
+      <a class="dl" href="https://ketanp23.github.io/deeplearningclass/rnn-deep-learning.html" target="_blank" rel="noopener">
+        <p class="lab">RNN chapter (reference)</p>
+        <p class="sub">The cell, BPTT, long-term dependencies, LSTM, GRU, bidirectional.</p>
+      </a>
+    </div>
+    <p class="say" style="font-size:13.5px;margin-top:10px">Keep this file and
+      <code>see-and-remember-starter.ipynb</code> in the same folder so the download link above works.</p>
+  </header>
+
+  <hr class="divider">
+
+  <!-- ============================================ overview -->
+  <section id="overview">
+    <h2>What your team will build</h2>
+    <p class="say">Pick <b>one flagship</b> to anchor your two hours, then stack <b>bonus challenges</b>
+      for extra points. Beginners can finish a flagship and one bonus comfortably; strong coders can
+      go deep. A no-code concept track is there for mixed teams.</p>
+    <p>The base points reward <b>understanding and explaining</b> a result in the chapter's language —
+      not just producing a number. A team that trains a model and can say precisely <i>why</i> pooling
+      bought translation tolerance will beat a team with a higher accuracy and no explanation.</p>
+  </section>
+
+  <!-- ============================================ schedule -->
+  <section id="schedule">
+    <h2>Run of show</h2>
+    <p class="say">Keep a countdown visible. Call a warning at the 1:15 mark: stop training, start
+      writing up.</p>
+    <table>
+      <thead><tr><th>Time</th><th>What happens</th></tr></thead>
+      <tbody>
+        <tr><td class="t">0:00–0:12</td><td>Kickoff: the two ideas, the rules, team formation. Open the starter notebook.</td></tr>
+        <tr><td class="t">0:12–0:20</td><td>Pick a flagship, skim the bonus menu, confirm the GPU runtime is on.</td></tr>
+        <tr><td class="t">0:20–1:35</td><td><b>Build sprint</b> — 75 minutes of hands-on work.</td></tr>
+        <tr><td class="t">1:35–1:55</td><td>Demos: 90 seconds per team — one result, one sentence of “why”.</td></tr>
+        <tr><td class="t">1:55–2:00</td><td>Scoring, winners, wrap.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ============================================ scoring -->
+  <section id="scoring">
+    <h2>How scoring works</h2>
+    <p class="say">One flagship gives you a base of 60 points. Bonuses add on top. A team tops out
+      around 100.</p>
+    <table>
+      <thead><tr><th>Component</th><th>Points</th></tr></thead>
+      <tbody>
+        <tr><td>One flagship, completed and explained</td><td>60</td></tr>
+        <tr><td>Bonus challenges (any track, stackable)</td><td>+10 to +15 each</td></tr>
+        <tr><td>Concept track (in place of a coding flagship, for no-code teams)</td><td>up to 60</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ============================================ setup -->
+  <section id="setup">
+    <h2>Setup — three minutes</h2>
+    <p class="say">Do this before the build sprint starts so no one loses time to environment issues.</p>
+    <table>
+      <tbody>
+        <tr><td class="t">1</td><td>Download the <a href="./see-and-remember-starter.ipynb" download>starter notebook</a> and go to <a href="https://colab.research.google.com/" target="_blank" rel="noopener">colab.research.google.com</a>.</td></tr>
+        <tr><td class="t">2</td><td>In Colab: <b>File → Upload notebook</b>, choose <code>see-and-remember-starter.ipynb</code>.</td></tr>
+        <tr><td class="t">3</td><td>Turn on the GPU: <b>Runtime → Change runtime type → GPU → Save</b>.</td></tr>
+        <tr><td class="t">4</td><td>Run the <b>Setup</b> cell. It should print your device as <code>cuda</code>.</td></tr>
+        <tr><td class="t">5</td><td>Jump to Flagship A (CNN) or Flagship B (RNN) and run the cells in order.</td></tr>
+      </tbody>
+    </table>
+    <div class="callout">No GPU showing? The notebook still runs on CPU, just slower. The RNN task and
+      the small CNN both finish in a couple of minutes either way. New to PyTorch? The
+      <a href="https://pytorch.org/" target="_blank" rel="noopener">pytorch.org</a> docs are the reference.</div>
+  </section>
+
+  <!-- ============================================ flagships -->
+  <section id="flagships">
+    <h2>The flagships — pick one</h2>
+    <p class="say">Each flagship is one experiment that makes a chapter's central claim visible. The
+      notebook already runs it; your job is to push it and explain it.</p>
+
+    <div class="flag see">
+      <span class="tag see">CNN track · stations 1–4, 6</span>
+      <h3>Flagship A — Dense vs Conv Showdown</h3>
+      <p class="claim">A convolutional net matches a dense net on images while using far fewer
+        parameters and losing less accuracy when the picture shifts — because connections are local,
+        weights are shared, and pooling tolerates small moves.</p>
+      <p>Train on Fashion-MNIST. Reach the accuracy target with a small CNN, then compare it head-to-head
+        with a dense network on two axes the chapter cares about: parameter count and translation
+        robustness.</p>
+      <p><b>Deliverables</b></p>
+      <ol class="deliver">
+        <li>CNN test accuracy <b>≥ 90%</b>.</li>
+        <li>Parameter count of the CNN vs the dense net (expect roughly a 10× gap).</li>
+        <li>Shift-robustness: each model's accuracy when every test image is rolled a few pixels, and the drop.</li>
+      </ol>
+      <p style="margin-top:14px">Winning insight: the CNN's smaller accuracy drop under shift <i>is</i>
+        the equivariance-plus-pooling story of stations 3–4, made measurable.</p>
+    </div>
+
+    <div class="flag remember">
+      <span class="tag remember">RNN track · stations 2, 3, 6, 7, 8</span>
+      <h3>Flagship B — Memory Showdown</h3>
+      <p class="claim">A plain RNN forgets across long gaps (the vanishing gradient), while a gated
+        cell carries information across them through its additive memory path.</p>
+      <p>Use the chapter's recall task: show a signal token at the first step, then a run of blanks, and
+        require the network to reproduce the first token at the last step. The gap is the sequence
+        length. Race a plain RNN against an LSTM as the gap grows.</p>
+      <p><b>Deliverables</b></p>
+      <ol class="deliver">
+        <li>Accuracy-vs-gap plot for a plain RNN and an LSTM on the same task.</li>
+        <li>The gap where the plain RNN slides toward chance (1⁄8) while the LSTM holds.</li>
+        <li>One sentence linking the RNN's collapse to the product of Jacobians in BPTT.</li>
+      </ol>
+      <p style="margin-top:14px">Winning insight: the LSTM's flat line is the constant error carousel
+        of station 7 — additive memory keeps the gradient alive where multiplication kills it.</p>
+    </div>
+  </section>
+
+  <!-- ============================================ bonus -->
+  <section id="bonus">
+    <h2>Bonus menu</h2>
+    <p class="say">Attempt any of these from either track. Each is stubbed in the notebook with a
+      <code># &gt;&gt;&gt; EXPERIMENT</code> marker.</p>
+    <div class="bonus">
+      <div class="col see">
+        <h3>See — CNN</h3>
+        <div class="b"><span class="pts">+15</span><span class="bt">Gabor hunt</span>
+          <p class="bd">Visualize your first-layer filters; argue which look like oriented edge detectors (station 5).</p></div>
+        <div class="b"><span class="pts">+15</span><span class="bt">Pooling ablation</span>
+          <p class="bd">Retrain with pooling removed; quantify the shift-robustness you lose (stations 3–4).</p></div>
+        <div class="b"><span class="pts">+10</span><span class="bt">Separable speedup</span>
+          <p class="bd">Do a k×k blur as two 1-D passes; measure the speedup against the predicted k⁄2 (station 9).</p></div>
+        <div class="b"><span class="pts">+10</span><span class="bt">BatchNorm on/off</span>
+          <p class="bd">Plot loss curves with and without batch norm to show faster, steadier training (station 10).</p></div>
+      </div>
+      <div class="col remember">
+        <h3>Remember — RNN</h3>
+        <div class="b"><span class="pts">+15</span><span class="bt">Char generator</span>
+          <p class="bd">Train a one-to-many char RNN and sample from it; note where teacher forcing is used (stations 4, 9).</p></div>
+        <div class="b"><span class="pts">+15</span><span class="bt">Gradient-norm evidence</span>
+          <p class="bd">Measure how little gradient reaches step 0 as the gap grows — direct proof of vanishing (station 6).</p></div>
+        <div class="b"><span class="pts">+10</span><span class="bt">Clip the cliff</span>
+          <p class="bd">Reproduce an exploding gradient, then tame it with gradient clipping (stations 6, 9).</p></div>
+        <div class="b"><span class="pts">+10</span><span class="bt">Chain vs tree</span>
+          <p class="bd">Compare chain depth n with tree depth ≈ log₂n and explain the long-dependency benefit (station 11).</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================ concept track -->
+  <section id="concept">
+    <h2>Concept track (no training required)</h2>
+    <p class="say">For mixed teams or anyone who'd rather reason than code. Two deliverables, judged
+      together for up to 60 points: answer the boss-battle below, and build one original visualization
+      or a one-page explainer of a concept you choose, using the chapters' live labs as reference.</p>
+    <ol class="q">
+      <li>Why does a fully-connected layer scale badly on images, and which three CNN properties fix it?</li>
+      <li>What does a single value in a feature map measure? What is a kernel?</li>
+      <li>Name the three stages of a convolutional layer. Why does pooling give approximate translation invariance?</li>
+      <li>Relate V1 simple and complex cells to convolution and pooling. What is a Gabor filter?</li>
+      <li>“Convolution is a dense layer with an infinitely strong prior.” State the two constraints, and what pooling's prior asserts.</li>
+      <li>Define stride, padding, and dilation, and give the output-size formula.</li>
+      <li>What is a structured output? How does convolution's spatial preservation enable segmentation?</li>
+      <li>Write the vanilla RNN cell equations. What does the hidden state represent, and what is parameter sharing across time?</li>
+      <li>In BPTT, why is a shared weight's gradient a sum over steps, and where does the product of Jacobians appear?</li>
+      <li>List the five RNN input–output types with one task each.</li>
+      <li>Why can't a bidirectional RNN be used for streaming / causal prediction?</li>
+      <li>Describe the LSTM's three gates and the additive cell update. Why is it a constant error carousel, and how does the GRU differ?</li>
+    </ol>
+  </section>
+
+  <!-- ============================================ judging -->
+  <section id="judging">
+    <h2>Judging</h2>
+    <p class="say">100 points. Insight is weighted heavily on purpose — this is a hackathon about
+      <i>why</i> these architectures work.</p>
+    <table class="rub">
+      <thead><tr><th>Criterion</th><th>What judges look for</th><th>Pts</th></tr></thead>
+      <tbody>
+        <tr><td>It works</td><td>The demo runs top-to-bottom and the numbers are reproducible.</td><td>40</td></tr>
+        <tr><td>Insight</td><td>The team explains the result in the chapter's language.</td><td>30</td></tr>
+        <tr><td>Reach &amp; creativity</td><td>Bonuses attempted, clever tests, clear visuals.</td><td>20</td></tr>
+        <tr><td>Demo</td><td>90 seconds: one result, one “why”.</td><td>10</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ============================================ facilitator -->
+  <section id="facilitator">
+    <h2>Facilitator prep checklist</h2>
+    <p class="say">Front-loading this is what makes real builds possible inside 75 minutes.</p>
+    <ul class="plain">
+      <li>Share the starter notebook link and this guide the night before, if you can.</li>
+      <li>Run the whole notebook yourself once on a fresh Colab to confirm timings on the day's hardware.</li>
+      <li>Pre-write the 12 concept questions on a slide or handout for non-coding teams.</li>
+      <li>Have a visible countdown timer; assign someone to call the 1:15 “stop training” warning.</li>
+      <li>Prepare the scorecard below (one per team) and decide your prizes.</li>
+      <li>Print or open the two chapter pages as the reference of record for any rules disputes.</li>
+    </ul>
+  </section>
+
+  <!-- ============================================ scorecard -->
+  <section id="scorecard" class="page-break">
+    <h2>Team scorecard</h2>
+    <p class="say">Print one per team. Judges fill the boxes.</p>
+    <div class="scorecard">
+      <h3>Team: ______________________________  ·  Flagship: ☐ CNN  ☐ RNN  ☐ Concept</h3>
+      <div class="rowline"><span>It works — runs and reproduces (0–40)</span><span class="box"></span></div>
+      <div class="rowline"><span>Insight — explained in the chapter's language (0–30)</span><span class="box"></span></div>
+      <div class="rowline"><span>Reach &amp; creativity — bonuses, tests, visuals (0–20)</span><span class="box"></span></div>
+      <div class="rowline"><span>Demo — one result, one “why” (0–10)</span><span class="box"></span></div>
+      <div class="rowline"><span><b>Bonuses attempted</b> (list): ______________________________</span><span class="box"></span></div>
+      <div class="rowline" style="border-bottom:0"><span><b>Total</b></span><span class="box"></span></div>
+    </div>
+  </section>
+
+  <footer>
+    <p><b>See &amp; Remember</b> — a 2-hour hackathon on Convolutional and Recurrent Networks.
+      Built around the course chapters on
+      <a href="https://ketanp23.github.io/deeplearningclass/cnn-deep-learning.html" target="_blank" rel="noopener">convolutional networks</a> and
+      <a href="https://ketanp23.github.io/deeplearningclass/rnn-deep-learning.html" target="_blank" rel="noopener">recurrent networks</a>.
+      Starter notebook: <code>see-and-remember-starter.ipynb</code> ·
+      <a href="https://colab.research.google.com/" target="_blank" rel="noopener">Google Colab</a>.</p>
+    <p>Slide the filter, unroll the loop.</p>
+  </footer>
+
+</div>
+</body>
+</html>
